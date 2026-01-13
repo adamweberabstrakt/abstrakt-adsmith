@@ -203,7 +203,7 @@ export function ResultsDisplay({ analysis, formData }: ResultsDisplayProps) {
                   color: '#e85d04',
                   fontFamily: 'Oswald, sans-serif'
                 }}>
-                  {brandGapAnalysis.brandMaturityScore || 0}
+                  {brandGapAnalysis.score || 0}
                 </div>
                 <div style={{ color: '#9a9a9a', marginBottom: '0.5rem' }}>out of 100</div>
                 
@@ -221,10 +221,10 @@ export function ResultsDisplay({ analysis, formData }: ResultsDisplayProps) {
                     textTransform: 'uppercase',
                     fontSize: '0.875rem'
                   }}>
-                    {brandGapAnalysis.currentTier || 'Emerging'} Brand
+                    {brandGapAnalysis.tier || 'Emerging'} Brand
                   </span>
                   <span style={{ color: '#666', marginLeft: '0.5rem', fontSize: '0.875rem' }}>
-                    — {tierDescriptions[(brandGapAnalysis.currentTier || 'emerging').toLowerCase()] || 'Building foundation'}
+                    — {tierDescriptions[(brandGapAnalysis.tier || 'emerging').toLowerCase()] || 'Building foundation'}
                   </span>
                 </div>
               </div>
@@ -239,7 +239,7 @@ export function ResultsDisplay({ analysis, formData }: ResultsDisplayProps) {
                 }}>
                   <div style={{
                     height: '100%',
-                    width: `${brandGapAnalysis.brandMaturityScore || 0}%`,
+                    width: `${brandGapAnalysis.score || 0}%`,
                     background: 'linear-gradient(90deg, #e85d04, #ff6b1a)',
                     borderRadius: '9999px',
                     transition: 'width 1s ease-out'
@@ -309,10 +309,10 @@ export function ResultsDisplay({ analysis, formData }: ResultsDisplayProps) {
                       Conservative
                     </h3>
                     <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#ffffff', fontFamily: 'Oswald, sans-serif' }}>
-                      ${(budgetRecommendation.conservative.totalMonthly || 0).toLocaleString()}<span style={{ fontSize: '1rem', color: '#666' }}>/mo</span>
+                      ${(budgetRecommendation.conservative.total || 0).toLocaleString()}<span style={{ fontSize: '1rem', color: '#666' }}>/mo</span>
                     </div>
                     <p style={{ color: '#666', fontSize: '0.875rem', marginTop: '0.5rem' }}>
-                      {budgetRecommendation.conservative.rationale || 'Low-risk entry point'}
+                      {budgetRecommendation.rationale || 'Low-risk entry point'}
                     </p>
                   </div>
                 )}
@@ -340,10 +340,10 @@ export function ResultsDisplay({ analysis, formData }: ResultsDisplayProps) {
                       </span>
                     </div>
                     <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#ffffff', fontFamily: 'Oswald, sans-serif' }}>
-                      ${(budgetRecommendation.aggressive.totalMonthly || 0).toLocaleString()}<span style={{ fontSize: '1rem', color: '#666' }}>/mo</span>
+                      ${(budgetRecommendation.aggressive.total || 0).toLocaleString()}<span style={{ fontSize: '1rem', color: '#666' }}>/mo</span>
                     </div>
                     <p style={{ color: '#666', fontSize: '0.875rem', marginTop: '0.5rem' }}>
-                      {budgetRecommendation.aggressive.rationale || 'Maximum impact strategy'}
+                      {budgetRecommendation.rationale || 'Maximum impact strategy'}
                     </p>
                   </div>
                 )}
@@ -494,3 +494,4 @@ export function ResultsDisplay({ analysis, formData }: ResultsDisplayProps) {
     </div>
   );
 }
+
