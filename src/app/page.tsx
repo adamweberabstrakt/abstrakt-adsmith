@@ -111,29 +111,41 @@ export default function Home() {
 
     try {
       // Call analysis API
+      console.log('Calling /api/analyze with:', formData);
       const analysisResponse = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       });
 
+      console.log('Analysis response status:', analysisResponse.status);
+      
+      const analysisData = await analysisResponse.json();
+      console.log('Analysis response data:', analysisData);
+
       if (!analysisResponse.ok) {
-        const errorData = await analysisResponse.json();
-        throw new Error(errorData.error || 'Analysis failed');
+        throw new Error(analysisData.error || `Analysis failed with status ${analysisResponse.status}`);
       }
 
-      const analysis: AnalysisResult = await analysisResponse.json();
-      setAnalysisResult(analysis);
+      // Validate the response has required fields
+      if (!analysisData.brandGapAnalysis || !analysisData.budgetRecommendation) {
+        console.error('Invalid analysis response structure:', analysisData);
+        throw new Error('Received incomplete analysis data');
+      }
 
-      // Send email report
+      setAnalysisResult(analysisData);
+
+      // Send email report (don't fail if this errors)
       try {
-        await fetch('/api/generate-pdf', {
+        console.log('Calling /api/generate-pdf...');
+        const pdfResponse = await fetch('/api/generate-pdf', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ formData, analysis, leadData }),
+          body: JSON.stringify({ formData, analysis: analysisData, leadData }),
         });
+        console.log('PDF response status:', pdfResponse.status);
       } catch (emailError) {
-        console.error('Email send failed:', emailError);
+        console.error('Email send failed (non-blocking):', emailError);
         // Don't fail the whole flow if email fails
       }
 
@@ -253,7 +265,32 @@ export default function Home() {
         )}
 
         {appState === 'results' && analysisResult && (
-          <ResultsDisplay analysis={analysisResult} formData={formData} />
+          <>
+            {/* Safety check for required data */}
+            {analysisResult.brandGapAnalysis && analysisResult.budgetRecommendation ? (
+              <ResultsDisplay analysis={analysisResult} formData={formData} />
+            ) : (
+              <div className="abstrakt-card p-8 text-center">
+                <h2 className="text-xl font-bold text-white mb-4">Analysis Complete</h2>
+                <p className="text-abstrakt-text-muted mb-4">
+                  Your analysis was generated but some data may be incomplete. 
+                  Please contact us for your full report.
+                </p>
+                <a 
+                  href="https://abstraktmg.com/contact"
+                  className="abstrakt-button inline-block"
+                >
+                  Contact Us
+                </a>
+                <details className="mt-6 text-left">
+                  <summary className="text-abstrakt-text-dim cursor-pointer">Debug Info</summary>
+                  <pre className="mt-2 p-4 bg-abstrakt-input rounded text-xs overflow-auto">
+                    {JSON.stringify(analysisResult, null, 2)}
+                  </pre>
+                </details>
+              </div>
+            )}
+          </>
         )}
       </div>
 

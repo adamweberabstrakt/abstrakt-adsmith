@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Resend } from 'resend';
 import { AnalysisResult, FormData } from '@/lib/types';
-
-const resend = new Resend(process.env.RESEND_API_KEY);
 
 interface PDFRequest {
   formData: FormData;
@@ -16,41 +13,91 @@ interface PDFRequest {
 }
 
 export async function POST(request: NextRequest) {
+  console.log('=== /api/generate-pdf called ===');
+  
   try {
     const { formData, analysis, leadData }: PDFRequest = await request.json();
+    console.log('Lead email:', leadData.email);
+    console.log('Company:', formData.businessContext.companyName);
+
+    // Check if Resend is configured
+    if (!process.env.RESEND_API_KEY) {
+      console.log('RESEND_API_KEY not configured - skipping email');
+      return NextResponse.json({ 
+        success: true, 
+        skipped: true,
+        message: 'Email skipped - Resend not configured' 
+      });
+    }
+
+    // Dynamic import to avoid errors if package issues
+    const { Resend } = await import('resend');
+    const resend = new Resend(process.env.RESEND_API_KEY);
 
     // Build the email HTML
     const emailHtml = buildEmailHTML(formData, analysis);
 
-    // Send via Resend
-    const { data, error } = await resend.emails.send({
-      from: 'Abstrakt Marketing <reports@abstrakt.email>',
-      to: leadData.email,
-      subject: `Brand Lift Analysis for ${formData.businessContext.companyName}`,
-      html: emailHtml,
-    });
+    // Determine the "from" address
+    // Use verified domain if set, otherwise use Resend's test domain
+    const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
+    console.log('Sending from:', fromEmail);
 
-    if (error) {
-      console.error('Resend error:', error);
-      return NextResponse.json({ error: 'Failed to send email' }, { status: 500 });
+    // Send via Resend
+    try {
+      const { data, error } = await resend.emails.send({
+        from: fromEmail,
+        to: leadData.email,
+        subject: `Brand Lift Analysis for ${formData.businessContext.companyName}`,
+        html: emailHtml,
+      });
+
+      if (error) {
+        console.error('Resend error:', error);
+        // Don't fail - just log and continue
+        return NextResponse.json({ 
+          success: false, 
+          error: error.message,
+          message: 'Email failed but analysis complete'
+        });
+      }
+
+      console.log('Email sent successfully:', data?.id);
+
+      // Try to send internal notification (optional)
+      try {
+        const internalEmail = process.env.INTERNAL_EMAIL;
+        if (internalEmail) {
+          await resend.emails.send({
+            from: fromEmail,
+            to: internalEmail,
+            subject: `New Brand Lift Lead: ${formData.businessContext.companyName}`,
+            html: buildInternalNotificationHTML(formData, analysis, leadData),
+          });
+          console.log('Internal notification sent');
+        }
+      } catch (internalError) {
+        console.error('Internal notification failed (non-blocking):', internalError);
+      }
+
+      return NextResponse.json({ success: true, messageId: data?.id });
+
+    } catch (sendError: any) {
+      console.error('Email send error:', sendError);
+      return NextResponse.json({ 
+        success: false, 
+        error: sendError.message,
+        message: 'Email failed but analysis complete'
+      });
     }
 
-    // Also send internal notification
-    await resend.emails.send({
-      from: 'Brand Lift Simulator <reports@abstrakt.email>',
-      to: process.env.INTERNAL_EMAIL || 'leads@abstraktmg.com',
-      subject: `New Brand Lift Lead: ${formData.businessContext.companyName}`,
-      html: buildInternalNotificationHTML(formData, analysis, leadData),
-    });
-
-    return NextResponse.json({ success: true, messageId: data?.id });
-
   } catch (error: any) {
-    console.error('PDF/Email error:', error);
-    return NextResponse.json(
-      { error: error.message || 'Failed to generate report' },
-      { status: 500 }
-    );
+    console.error('PDF/Email error:', error?.message || error);
+    // Return success anyway so the main flow isn't blocked
+    return NextResponse.json({ 
+      success: false, 
+      error: error.message,
+      message: 'Email processing failed but analysis complete'
+    });
   }
 }
 
