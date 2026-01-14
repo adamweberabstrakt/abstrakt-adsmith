@@ -86,6 +86,21 @@ export interface PlatformRecommendation {
   channels: string[];
 }
 
+// Keyword CPC data (NEW)
+export interface KeywordCPC {
+  keyword: string;
+  avgCpc: string;
+  searchVolume: string;
+  competition: 'low' | 'medium' | 'high';
+}
+
+// Competitor Budget Estimate (NEW)
+export interface CompetitorBudgetEstimate {
+  domain: string;
+  estimatedMonthlySpend: string;
+  confidence: 'low' | 'medium' | 'high';
+}
+
 // Budget Recommendation
 export interface BudgetRecommendation {
   type: 'new' | 'existing';
@@ -102,6 +117,8 @@ export interface BudgetRecommendation {
     summary: string;
   };
   rationale: string;
+  competitorEstimates?: CompetitorBudgetEstimate[];  // NEW
+  topKeywords?: KeywordCPC[];  // NEW
 }
 
 // Brand maturity tiers

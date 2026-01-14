@@ -1,4 +1,4 @@
-import { FormData, AnalysisResult, BrandMaturityTier, PlatformRecommendation } from './types';
+import { FormData, AnalysisResult, BrandMaturityTier, PlatformRecommendation, KeywordCPC, CompetitorBudgetEstimate } from './types';
 
 // Platform definitions for budget recommendations
 const PLATFORM_CONFIG = {
@@ -29,11 +29,11 @@ export function calculateBudgetRecommendation(tier: BrandMaturityTier, formData:
   // Conservative: Always $1,000-$2,500, single platform
   const conservativeBudget = getConservativeBudget(tier);
   const conservativePlatform = getRecommendedSinglePlatform(formData);
-  
+
   // Aggressive: Multi-platform, $X,000+ format, max $5,000+
   const aggressiveBudget = getAggressiveBudget(tier, conservativeBudget);
   const aggressivePlatforms = getRecommendedMultiPlatforms(formData, tier);
-  
+
   return {
     conservative: {
       total: conservativeBudget,
@@ -69,7 +69,7 @@ function getConservativeBudget(tier: BrandMaturityTier): number {
 function getAggressiveBudget(tier: BrandMaturityTier, conservativeBudget: number): number {
   // Must be at least 25% higher than conservative, max $5,000
   const minAggressive = Math.ceil(conservativeBudget * 1.35); // 35% higher to ensure > 25%
-  
+
   let baseBudget: number;
   switch (tier) {
     case 'emerging':
@@ -87,18 +87,18 @@ function getAggressiveBudget(tier: BrandMaturityTier, conservativeBudget: number
     default:
       baseBudget = 3500;
   }
-  
+
   // Ensure it's at least 25% higher and cap at $5,000
   const finalBudget = Math.max(minAggressive, baseBudget);
   return Math.min(finalBudget, 5000);
 }
 
 function getRecommendedSinglePlatform(formData: FormData): PlatformRecommendation {
-  const { industry, primaryGoal } = { 
+  const { industry, primaryGoal } = {
     industry: formData.businessContext.industry,
-    primaryGoal: formData.marketingState.primaryGoal 
+    primaryGoal: formData.marketingState.primaryGoal
   };
-  
+
   // B2B industries → LinkedIn
   const b2bIndustries = ['B2B SaaS', 'Professional Services', 'Technology', 'Financial Services'];
   if (b2bIndustries.includes(industry)) {
@@ -109,7 +109,7 @@ function getRecommendedSinglePlatform(formData: FormData): PlatformRecommendatio
       channels: ['LinkedIn Ads'],
     };
   }
-  
+
   // Lead generation focus → Google Ads
   if (primaryGoal === 'leads' || primaryGoal === 'pipeline') {
     return {
@@ -119,7 +119,7 @@ function getRecommendedSinglePlatform(formData: FormData): PlatformRecommendatio
       channels: ['Search', 'PMAX'],
     };
   }
-  
+
   // Brand awareness → OTT
   if (primaryGoal === 'brand') {
     return {
@@ -129,7 +129,7 @@ function getRecommendedSinglePlatform(formData: FormData): PlatformRecommendatio
       channels: ['Streaming CTV', 'Online Video'],
     };
   }
-  
+
   // Default to Google Ads
   return {
     platform: 'google-ads',
@@ -141,14 +141,14 @@ function getRecommendedSinglePlatform(formData: FormData): PlatformRecommendatio
 
 function getRecommendedMultiPlatforms(formData: FormData, tier: BrandMaturityTier): PlatformRecommendation[] {
   const platforms: PlatformRecommendation[] = [];
-  const { industry, primaryGoal } = { 
+  const { industry, primaryGoal } = {
     industry: formData.businessContext.industry,
-    primaryGoal: formData.marketingState.primaryGoal 
+    primaryGoal: formData.marketingState.primaryGoal
   };
-  
+
   const b2bIndustries = ['B2B SaaS', 'Professional Services', 'Technology', 'Financial Services'];
   const isB2B = b2bIndustries.includes(industry);
-  
+
   // Always include Google Ads for aggressive
   platforms.push({
     platform: 'google-ads',
@@ -156,7 +156,7 @@ function getRecommendedMultiPlatforms(formData: FormData, tier: BrandMaturityTie
     budget: 1500,
     channels: ['Search', 'PMAX', 'Demand Gen'],
   });
-  
+
   // Add LinkedIn for B2B
   if (isB2B) {
     platforms.push({
@@ -166,7 +166,7 @@ function getRecommendedMultiPlatforms(formData: FormData, tier: BrandMaturityTie
       channels: ['LinkedIn Ads'],
     });
   }
-  
+
   // Add OTT for brand awareness or established+ tiers
   if (primaryGoal === 'brand' || tier === 'established' || tier === 'dominant') {
     platforms.push({
@@ -176,7 +176,7 @@ function getRecommendedMultiPlatforms(formData: FormData, tier: BrandMaturityTie
       channels: ['Streaming CTV', 'Online Video'],
     });
   }
-  
+
   // Add Meta for consumer-facing or "all" goals
   if (!isB2B || primaryGoal === 'all') {
     platforms.push({
@@ -186,21 +186,21 @@ function getRecommendedMultiPlatforms(formData: FormData, tier: BrandMaturityTie
       channels: ['Facebook & Instagram Ads'],
     });
   }
-  
+
   return platforms;
 }
 
 function formatAggressiveSummary(platforms: PlatformRecommendation[], totalBudget: number): string {
   const platformNames = platforms.map(p => p.displayName);
-  
+
   if (platformNames.length === 1) {
     return `${platformNames[0]} - $${totalBudget.toLocaleString()}+`;
   }
-  
+
   if (platformNames.length === 2) {
     return `${platformNames.join(' + ')} - $${totalBudget.toLocaleString()}+`;
   }
-  
+
   // 3+ platforms: "Platform1 + Platform2 + Platform3 - $X,000+"
   return `${platformNames.join(' + ')} - $${totalBudget.toLocaleString()}+`;
 }
@@ -208,7 +208,13 @@ function formatAggressiveSummary(platforms: PlatformRecommendation[], totalBudge
 // Build the Claude analysis prompt
 export function buildAnalysisPrompt(formData: FormData): string {
   const { businessContext, marketingState, brandMaturity } = formData;
-  
+
+  // Check if competitor URLs were provided
+  const hasCompetitors = businessContext.competitorUrls?.filter(u => u.trim()).length > 0;
+  const competitorSection = hasCompetitors 
+    ? `- Competitors: ${businessContext.competitorUrls.filter(u => u.trim()).join(', ')}` 
+    : '';
+
   return `You are an expert B2B marketing strategist specializing in paid media and AI search visibility. Analyze the following business and provide strategic recommendations.
 
 ## Business Context
@@ -218,7 +224,7 @@ export function buildAnalysisPrompt(formData: FormData): string {
 - Average Deal Size: ${businessContext.averageDealSize ? `$${businessContext.averageDealSize.toLocaleString()}` : 'Not specified'}
 - Sales Cycle: ${businessContext.salesCycleLength || 'Not specified'}
 - Geographic Focus: ${businessContext.geographicFocus}
-${businessContext.competitorUrls?.filter(u => u).length ? `- Competitors: ${businessContext.competitorUrls.filter(u => u).join(', ')}` : ''}
+${competitorSection}
 ${businessContext.customAdAngle ? `- Unique Value Proposition: ${businessContext.customAdAngle}` : ''}
 
 ## Current Marketing State
@@ -256,6 +262,21 @@ Based on this information, provide a comprehensive analysis in the following JSO
     "toneGuidance": "<guidance on brand voice and messaging tone>",
     "keyDifferentiators": ["<differentiator 1>", "<differentiator 2>", "<differentiator 3>"]
   },
+  "topKeywords": [
+    {
+      "keyword": "<relevant keyword for this industry/business>",
+      "avgCpc": "<estimated CPC like $2.50>",
+      "searchVolume": "<monthly volume like 1,200>",
+      "competition": "low|medium|high"
+    }
+  ],
+  ${hasCompetitors ? `"competitorEstimates": [
+    {
+      "domain": "<competitor domain>",
+      "estimatedMonthlySpend": "<estimated monthly ad spend like $5,000-$10,000>",
+      "confidence": "low|medium|high"
+    }
+  ],` : ''}
   "executiveSummary": "<3-4 sentence executive summary of the analysis and top recommendation>",
   "nextSteps": ["<actionable next step 1>", "<actionable next step 2>", "<actionable next step 3>", "<actionable next step 4>"]
 }
@@ -267,6 +288,49 @@ IMPORTANT GUIDELINES:
 4. Base tier assessment on: brand recognition (40%), existing branded search (30%), competitor awareness (30%)
 5. AI search constraints should focus on how AI platforms like ChatGPT and Perplexity evaluate brand authority
 6. Next steps should be specific, actionable, and prioritized
+7. For topKeywords, provide exactly 5 keywords relevant to this ${businessContext.industry} business with realistic CPC estimates based on industry benchmarks
+${hasCompetitors ? '8. For competitorEstimates, analyze each provided competitor URL and estimate their monthly paid media spend based on typical industry benchmarks and their apparent market position' : ''}
+
+Respond with ONLY the JSON object, no additional text.`;
+}
+
+// Build prompt for regenerating just messaging/ad angles
+export function buildRegenerateMessagingPrompt(formData: FormData, existingAngles: string[]): string {
+  const { businessContext } = formData;
+
+  return `You are an expert B2B marketing strategist. Generate 3 NEW ad angles for the following business. These should be DIFFERENT from the previously generated angles.
+
+## Business Context
+- Company: ${businessContext.companyName}
+- Industry: ${businessContext.industry}
+- Website: ${businessContext.websiteUrl}
+${businessContext.customAdAngle ? `- Unique Value Proposition: ${businessContext.customAdAngle}` : ''}
+
+## Previously Generated Headlines (DO NOT REPEAT THESE):
+${existingAngles.map((a, i) => `${i + 1}. ${a}`).join('\n')}
+
+Generate 3 completely new ad angles in this JSON format:
+
+{
+  "adAngles": [
+    {
+      "type": "problem-aware|brand-authority|ai-search-capture|social-proof|differentiation",
+      "headline": "<compelling headline under 60 characters>",
+      "subheadline": "<supporting subheadline under 90 characters>",
+      "valueProposition": "<1-2 sentence value prop>",
+      "ctaText": "<call to action text>",
+      "targetFunnelStage": "awareness|consideration|decision"
+    }
+  ],
+  "toneGuidance": "<guidance on brand voice and messaging tone>",
+  "keyDifferentiators": ["<differentiator 1>", "<differentiator 2>", "<differentiator 3>"]
+}
+
+IMPORTANT:
+- Create FRESH angles with different approaches than the previous ones
+- Use different headline styles and messaging angles
+- Vary the funnel stages targeted
+- Make headlines compelling and specific to ${businessContext.industry}
 
 Respond with ONLY the JSON object, no additional text.`;
 }
@@ -284,38 +348,64 @@ export function parseAnalysisResponse(response: string, formData: FormData): Ana
   if (cleanResponse.endsWith('```')) {
     cleanResponse = cleanResponse.slice(0, -3);
   }
-  
+
   const parsed = JSON.parse(cleanResponse);
-  
+
   // Calculate budget recommendations based on the tier
   const budgetRecommendation = calculateBudgetRecommendation(
     parsed.brandGapAnalysis.tier,
     formData
   );
-  
+
+  // Extract competitor estimates and keywords from parsed response
+  const competitorEstimates: CompetitorBudgetEstimate[] | undefined = parsed.competitorEstimates;
+  const topKeywords: KeywordCPC[] | undefined = parsed.topKeywords;
+
   return {
     ...parsed,
     budgetRecommendation: {
       type: formData.marketingState.monthlyPaidMediaBudget ? 'existing' : 'new',
       ...budgetRecommendation,
       rationale: generateBudgetRationale(parsed.brandGapAnalysis.tier, formData),
+      competitorEstimates,
+      topKeywords,
     },
-    semrushDisclaimer: 'Budget estimates provided by SEMRush and may not be fully accurate.',
+    semrushDisclaimer: 'Budget and CPC estimates are AI-generated based on industry benchmarks. Actual values may vary.',
   };
 }
 
+// Parse regenerated messaging response
+export function parseRegenerateMessagingResponse(response: string): { 
+  adAngles: AnalysisResult['messagingRecommendation']['adAngles'];
+  toneGuidance: string;
+  keyDifferentiators: string[];
+} {
+  let cleanResponse = response.trim();
+  if (cleanResponse.startsWith('```json')) {
+    cleanResponse = cleanResponse.slice(7);
+  }
+  if (cleanResponse.startsWith('```')) {
+    cleanResponse = cleanResponse.slice(3);
+  }
+  if (cleanResponse.endsWith('```')) {
+    cleanResponse = cleanResponse.slice(0, -3);
+  }
+
+  return JSON.parse(cleanResponse);
+}
+
 function generateBudgetRationale(tier: BrandMaturityTier, formData: FormData): string {
-  const { industry, primaryGoal } = { 
+  const { industry, primaryGoal } = {
     industry: formData.businessContext.industry,
-    primaryGoal: formData.marketingState.primaryGoal 
+    primaryGoal: formData.marketingState.primaryGoal
   };
-  
+
   const tierDescriptions: Record<BrandMaturityTier, string> = {
     emerging: 'an emerging brand with significant growth opportunity',
     developing: 'a developing brand building market presence',
     established: 'an established brand ready for expansion',
     dominant: 'a dominant brand optimizing market position',
   };
-  
+
   return `Based on your position as ${tierDescriptions[tier]} in the ${industry} industry, we recommend starting with a focused single-platform approach (conservative) to validate messaging and targeting. The aggressive option adds multi-platform reach to accelerate brand awareness and capture demand across the buyer journey.`;
 }
