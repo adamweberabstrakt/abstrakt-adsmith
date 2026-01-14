@@ -7,10 +7,10 @@ const replicate = new Replicate({
 
 type ImageModel = 'imagen' | 'dalle' | 'flux';
 
-const MODEL_IDS: Record<ImageModel, string> = {
-  imagen: 'google-deepmind/imagen-3',
-  dalle: 'black-forest-labs/flux-1.1-pro', // Using Flux Pro as DALL-E alternative
-  flux: 'black-forest-labs/flux-schnell',
+const MODEL_IDS = {
+  imagen: 'google-deepmind/imagen-3' as const,
+  dalle: 'black-forest-labs/flux-1.1-pro' as const,
+  flux: 'black-forest-labs/flux-schnell' as const,
 };
 
 export async function POST(request: NextRequest) {
