@@ -18,18 +18,9 @@ export function AdCreativeGenerator({ result, formData }: AdCreativeGeneratorPro
   const [error, setError] = useState<string | null>(null);
 
   const modelConfig: Record<ImageModel, { name: string; description: string }> = {
-    imagen: { 
-      name: 'Google Imagen 3', 
-      description: 'Best for photorealistic imagery' 
-    },
-    dalle: { 
-      name: 'DALL-E 3', 
-      description: 'Great for creative concepts' 
-    },
-    flux: { 
-      name: 'Flux Schnell', 
-      description: 'Fast generation, artistic style' 
-    },
+    imagen: { name: 'Google Imagen 3', description: 'Best for photorealistic imagery' },
+    dalle: { name: 'DALL-E 3', description: 'Great for creative concepts' },
+    flux: { name: 'Flux Schnell', description: 'Fast generation, artistic style' },
   };
 
   const selectedAngle = result.messagingRecommendation.adAngles[selectedAngleIndex];
@@ -37,7 +28,7 @@ export function AdCreativeGenerator({ result, formData }: AdCreativeGeneratorPro
   const handleGenerateImage = async () => {
     setIsGenerating(true);
     setError(null);
-    
+
     try {
       const response = await fetch('/api/generate-image', {
         method: 'POST',
@@ -117,12 +108,10 @@ export function AdCreativeGenerator({ result, formData }: AdCreativeGeneratorPro
           <p className="text-sm text-abstrakt-text-muted mb-4">
             Use Ideogram for ads that include text overlays, headlines, or typography-heavy designs.
           </p>
-          
           <div className="bg-abstrakt-input rounded-lg p-4 mb-4">
             <p className="text-xs text-abstrakt-text-dim mb-2">Preview headline:</p>
             <p className="text-white font-semibold">&ldquo;{selectedAngle.headline}&rdquo;</p>
           </div>
-          
           <button
             onClick={handleOpenIdeogram}
             className="w-full py-3 px-4 rounded-lg bg-green-600 hover:bg-green-700 text-white font-semibold transition-all flex items-center justify-center gap-2"
@@ -163,11 +152,11 @@ export function AdCreativeGenerator({ result, formData }: AdCreativeGeneratorPro
                   onChange={() => setSelectedModel(model)}
                   className="sr-only"
                 />
-                <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                  selectedModel === model 
-                    ? 'border-abstrakt-orange bg-abstrakt-orange' 
-                    : 'border-abstrakt-input-border'
-                }`}>
+                <div
+                  className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                    selectedModel === model ? 'border-abstrakt-orange bg-abstrakt-orange' : 'border-abstrakt-input-border'
+                  }`}
+                >
                   {selectedModel === model && (
                     <div className="w-2 h-2 rounded-full bg-white" />
                   )}
@@ -210,7 +199,6 @@ export function AdCreativeGenerator({ result, formData }: AdCreativeGeneratorPro
       {(generatedImage || error) && (
         <div className="abstrakt-card p-6">
           <h3 className="section-header mb-4">Generated Creative</h3>
-          
           {error ? (
             <div className="bg-red-900/20 border border-red-500/50 rounded-lg p-4 text-red-400">
               {error}
@@ -224,7 +212,6 @@ export function AdCreativeGenerator({ result, formData }: AdCreativeGeneratorPro
                   className="w-full h-auto"
                 />
               </div>
-              
               <div className="flex gap-3">
                 <a
                   href={generatedImage}
@@ -248,20 +235,32 @@ export function AdCreativeGenerator({ result, formData }: AdCreativeGeneratorPro
         </div>
       )}
 
-      {/* Pomelli Link */}
-      <div className="text-center py-4 border-t border-abstrakt-card-border">
-        <p className="text-sm text-abstrakt-text-dim mb-2">
-          Need more advanced AI image editing?
-        </p>
-        <button
-          onClick={handleOpenPomelli}
-          className="text-abstrakt-orange hover:text-abstrakt-orange-light transition-colors inline-flex items-center gap-2"
-        >
-          Try Pomelli AI
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-          </svg>
-        </button>
+      {/* Pomelli CTA - Prominent Button Style */}
+      <div className="abstrakt-card p-6 border-2 border-purple-500/50 bg-gradient-to-r from-purple-900/20 to-transparent">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-lg bg-purple-600 flex items-center justify-center">
+              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+              </svg>
+            </div>
+            <div>
+              <h4 className="text-lg font-heading font-bold text-white">Try Pomelli AI</h4>
+              <p className="text-sm text-abstrakt-text-muted">
+                Advanced AI image editing and ad creative generation
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleOpenPomelli}
+            className="px-6 py-3 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-semibold transition-all flex items-center gap-2 whitespace-nowrap"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+            </svg>
+            Open Pomelli AI
+          </button>
+        </div>
       </div>
     </div>
   );

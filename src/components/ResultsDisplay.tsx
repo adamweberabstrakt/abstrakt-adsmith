@@ -8,11 +8,14 @@ interface ResultsDisplayProps {
   result: AnalysisResult;
   formData: FormData;
   onStartOver: () => void;
+  onRegenerateMessaging: () => Promise<void>;
+  onOpenScheduler: () => void;
 }
 
-export function ResultsDisplay({ result, formData, onStartOver }: ResultsDisplayProps) {
+export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMessaging, onOpenScheduler }: ResultsDisplayProps) {
   const [activeTab, setActiveTab] = useState<'overview' | 'messaging' | 'creative'>('overview');
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [isRegenerating, setIsRegenerating] = useState(false);
 
   const tierColors: Record<string, string> = {
     emerging: 'text-yellow-400',
@@ -30,7 +33,7 @@ export function ResultsDisplay({ result, formData, onStartOver }: ResultsDisplay
 
   // Get first competitor URL for ads transparency link
   const primaryCompetitor = formData.businessContext.competitorUrls?.find(url => url.trim() !== '');
-  
+
   const handleCheckCompetitorAds = () => {
     if (primaryCompetitor) {
       // Extract domain from URL
@@ -41,7 +44,6 @@ export function ResultsDisplay({ result, formData, onStartOver }: ResultsDisplay
       } catch {
         domain = primaryCompetitor.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
       }
-      
       const transparencyUrl = `https://adstransparency.google.com/?domain=${encodeURIComponent(domain)}`;
       window.open(transparencyUrl, '_blank', 'noopener,noreferrer');
     }
@@ -55,7 +57,7 @@ export function ResultsDisplay({ result, formData, onStartOver }: ResultsDisplay
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ result, formData }),
       });
-      
+
       if (response.ok) {
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
@@ -74,6 +76,15 @@ export function ResultsDisplay({ result, formData, onStartOver }: ResultsDisplay
     }
   };
 
+  const handleRegenerate = async () => {
+    setIsRegenerating(true);
+    try {
+      await onRegenerateMessaging();
+    } finally {
+      setIsRegenerating(false);
+    }
+  };
+
   return (
     <div className="space-y-8 animate-fade-in">
       {/* Header with actions */}
@@ -86,8 +97,16 @@ export function ResultsDisplay({ result, formData, onStartOver }: ResultsDisplay
             Your personalized brand lift strategy
           </p>
         </div>
-        
         <div className="flex gap-3">
+          <button
+            onClick={onOpenScheduler}
+            className="abstrakt-button text-sm px-4 py-2 flex items-center gap-2"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            Schedule a Meeting
+          </button>
           <button
             onClick={handleDownloadPdf}
             disabled={isGeneratingPdf}
@@ -107,7 +126,6 @@ export function ResultsDisplay({ result, formData, onStartOver }: ResultsDisplay
               </>
             )}
           </button>
-          
           <button
             onClick={onStartOver}
             className="text-abstrakt-text-muted hover:text-white text-sm px-4 py-2"
@@ -158,12 +176,12 @@ export function ResultsDisplay({ result, formData, onStartOver }: ResultsDisplay
               </div>
               <div className="progress-bar">
                 <div 
-                  className="progress-bar-fill"
-                  style={{ width: `${result.brandGapAnalysis.score}%` }}
+                  className="progress-bar-fill" 
+                  style={{ width: `${result.brandGapAnalysis.score}%` }} 
                 />
               </div>
             </div>
-            
+
             <p className="text-abstrakt-text-muted leading-relaxed">
               {result.brandGapAnalysis.brandDemandGap}
             </p>
@@ -190,7 +208,7 @@ export function ResultsDisplay({ result, formData, onStartOver }: ResultsDisplay
                   Single platform focus for validation
                 </div>
               </div>
-              
+
               {/* Aggressive */}
               <div className="bg-abstrakt-input rounded-lg p-5 border-2 border-abstrakt-orange">
                 <div className="flex items-center gap-2 mb-3">
@@ -208,11 +226,11 @@ export function ResultsDisplay({ result, formData, onStartOver }: ResultsDisplay
                 </div>
               </div>
             </div>
-            
+
             <p className="text-sm text-abstrakt-text-muted mt-4 leading-relaxed">
               {result.budgetRecommendation.rationale}
             </p>
-            
+
             {/* SEMRush Disclaimer */}
             {result.semrushDisclaimer && (
               <p className="text-xs text-abstrakt-text-dim mt-4 italic border-t border-abstrakt-card-border pt-4">
@@ -220,6 +238,72 @@ export function ResultsDisplay({ result, formData, onStartOver }: ResultsDisplay
               </p>
             )}
           </div>
+
+          {/* Competitor Budget Estimates - NEW */}
+          {result.budgetRecommendation.competitorEstimates && result.budgetRecommendation.competitorEstimates.length > 0 && (
+            <div className="abstrakt-card p-6">
+              <h3 className="section-header mb-4">Estimated Competitor Ad Spend</h3>
+              <p className="text-sm text-abstrakt-text-muted mb-4">
+                Based on industry benchmarks and market position analysis:
+              </p>
+              <div className="space-y-3">
+                {result.budgetRecommendation.competitorEstimates.map((competitor, idx) => (
+                  <div key={idx} className="flex items-center justify-between bg-abstrakt-input rounded-lg p-4 border border-abstrakt-input-border">
+                    <div className="flex items-center gap-3">
+                      <span className="text-abstrakt-orange">🏢</span>
+                      <span className="text-white font-medium">{competitor.domain}</span>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-abstrakt-orange font-semibold">{competitor.estimatedMonthlySpend}/mo</div>
+                      <div className="text-xs text-abstrakt-text-dim">
+                        Confidence: {competitor.confidence}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Top Keywords with CPC - NEW */}
+          {result.budgetRecommendation.topKeywords && result.budgetRecommendation.topKeywords.length > 0 && (
+            <div className="abstrakt-card p-6">
+              <h3 className="section-header mb-4">Top 5 Keywords & Estimated CPC</h3>
+              <p className="text-sm text-abstrakt-text-muted mb-4">
+                High-value keywords for your {formData.businessContext.industry} business:
+              </p>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-abstrakt-card-border">
+                      <th className="text-left py-3 px-4 text-abstrakt-text-muted text-sm font-medium">Keyword</th>
+                      <th className="text-center py-3 px-4 text-abstrakt-text-muted text-sm font-medium">Avg CPC</th>
+                      <th className="text-center py-3 px-4 text-abstrakt-text-muted text-sm font-medium">Search Volume</th>
+                      <th className="text-center py-3 px-4 text-abstrakt-text-muted text-sm font-medium">Competition</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {result.budgetRecommendation.topKeywords.map((kw, idx) => (
+                      <tr key={idx} className="border-b border-abstrakt-card-border/50">
+                        <td className="py-3 px-4 text-white">{kw.keyword}</td>
+                        <td className="py-3 px-4 text-center text-abstrakt-orange font-semibold">{kw.avgCpc}</td>
+                        <td className="py-3 px-4 text-center text-abstrakt-text-muted">{kw.searchVolume}</td>
+                        <td className="py-3 px-4 text-center">
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${
+                            kw.competition === 'high' ? 'bg-red-900/50 text-red-400' :
+                            kw.competition === 'medium' ? 'bg-yellow-900/50 text-yellow-400' :
+                            'bg-green-900/50 text-green-400'
+                          }`}>
+                            {kw.competition}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           {/* Competitor Ads Button */}
           {primaryCompetitor && (
@@ -278,12 +362,54 @@ export function ResultsDisplay({ result, formData, onStartOver }: ResultsDisplay
               ))}
             </ol>
           </div>
+
+          {/* Schedule Meeting CTA */}
+          <div className="abstrakt-card p-6 border-2 border-abstrakt-orange bg-gradient-to-r from-abstrakt-orange/10 to-transparent">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div>
+                <h3 className="text-xl font-heading font-bold text-white mb-1">Ready to Get Started?</h3>
+                <p className="text-abstrakt-text-muted">Let&apos;s discuss how we can help implement this strategy.</p>
+              </div>
+              <button
+                onClick={onOpenScheduler}
+                className="abstrakt-button px-6 py-3 flex items-center gap-2 whitespace-nowrap"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                Schedule a Meeting
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
       {/* Messaging Tab */}
       {activeTab === 'messaging' && (
         <div className="space-y-6">
+          {/* Regenerate Button */}
+          <div className="flex justify-end">
+            <button
+              onClick={handleRegenerate}
+              disabled={isRegenerating}
+              className="abstrakt-button-outline flex items-center gap-2"
+            >
+              {isRegenerating ? (
+                <>
+                  <span className="spinner w-4 h-4" />
+                  Regenerating...
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Regenerate Ad Angles
+                </>
+              )}
+            </button>
+          </div>
+
           {/* Tone Guidance */}
           <div className="abstrakt-card p-6">
             <h3 className="section-header mb-4">Brand Voice & Tone</h3>
@@ -297,7 +423,7 @@ export function ResultsDisplay({ result, formData, onStartOver }: ResultsDisplay
             <h3 className="section-header mb-4">Key Differentiators</h3>
             <div className="flex flex-wrap gap-3">
               {result.messagingRecommendation.keyDifferentiators.map((diff, idx) => (
-                <span 
+                <span
                   key={idx}
                   className="px-4 py-2 bg-abstrakt-input rounded-full text-sm text-abstrakt-text-muted border border-abstrakt-input-border"
                 >
@@ -320,20 +446,20 @@ export function ResultsDisplay({ result, formData, onStartOver }: ResultsDisplay
                     {angle.targetFunnelStage}
                   </span>
                 </div>
-                
+
                 <h4 className="text-xl font-heading font-bold text-white mb-2">
                   {angle.headline}
                 </h4>
                 <p className="text-abstrakt-text-muted mb-4">
                   {angle.subheadline}
                 </p>
-                
+
                 <div className="bg-abstrakt-input rounded-lg p-4 mb-4">
                   <p className="text-sm text-abstrakt-text-muted">
                     {angle.valueProposition}
                   </p>
                 </div>
-                
+
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-abstrakt-text-dim">CTA:</span>
                   <span className="px-4 py-2 bg-abstrakt-orange rounded text-sm font-semibold text-white">
@@ -349,7 +475,7 @@ export function ResultsDisplay({ result, formData, onStartOver }: ResultsDisplay
       {/* Creative Tab */}
       {activeTab === 'creative' && (
         <AdCreativeGenerator 
-          result={result}
+          result={result} 
           formData={formData}
         />
       )}
