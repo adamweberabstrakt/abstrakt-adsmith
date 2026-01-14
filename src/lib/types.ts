@@ -5,6 +5,10 @@ export interface BusinessContextInputs {
   averageDealSize: number | null;
   salesCycleLength: string;
   geographicFocus: 'local' | 'regional' | 'national' | 'international';
+  // New fields
+  websiteUrl: string;
+  competitorUrls: string[];
+  customAdAngle?: string;
 }
 
 export interface MarketingStateInputs {
@@ -26,6 +30,16 @@ export interface FormData {
   brandMaturity: BrandMaturityInputs;
 }
 
+// Attribution tracking
+export interface AttributionData {
+  utm_source?: string;
+  utm_medium?: string;
+  utm_campaign?: string;
+  utm_content?: string;
+  utm_term?: string;
+  gclid?: string;
+}
+
 // Analysis result types
 export type BrandMaturityTier = 'emerging' | 'developing' | 'established' | 'dominant';
 
@@ -37,23 +51,29 @@ export interface BrandGapAnalysis {
   paidMediaPotential: string;
 }
 
+// Updated platform structure
+export type PlatformType = 'google-ads' | 'ott-ads' | 'linkedin' | 'meta';
+
+export interface PlatformRecommendation {
+  platform: PlatformType;
+  displayName: string;
+  budget: number;
+  channels: string[];
+}
+
 export interface BudgetRecommendation {
   type: 'existing' | 'new';
   conservative: {
     total: number;
-    brandSearch: number;
-    nonBrandSearch: number;
-    linkedin: number;
-    youtube: number;
-    display: number;
+    displayTotal: string; // e.g., "$1,500"
+    platforms: PlatformRecommendation[];
+    summary: string; // e.g., "LinkedIn Ads - $1,500"
   };
   aggressive: {
     total: number;
-    brandSearch: number;
-    nonBrandSearch: number;
-    linkedin: number;
-    youtube: number;
-    display: number;
+    displayTotal: string; // e.g., "$4,000+"
+    platforms: PlatformRecommendation[];
+    summary: string; // e.g., "LinkedIn Ads + Google Ads + OTT - $4,000+"
   };
   minimumViable?: number;
   warningThreshold?: number;
@@ -75,12 +95,23 @@ export interface MessagingRecommendation {
   keyDifferentiators: string[];
 }
 
+// Competitor analysis from SEMRush
+export interface CompetitorInsight {
+  domain: string;
+  estimatedMonthlySpend?: number;
+  keywordCount?: number;
+  avgCpc?: number;
+  topKeywords?: string[];
+}
+
 export interface AnalysisResult {
   brandGapAnalysis: BrandGapAnalysis;
   budgetRecommendation: BudgetRecommendation;
   messagingRecommendation: MessagingRecommendation;
   executiveSummary: string;
   nextSteps: string[];
+  competitorInsights?: CompetitorInsight[];
+  semrushDisclaimer?: string;
 }
 
 // Form step configuration
@@ -96,7 +127,7 @@ export const FORM_STEPS: FormStep[] = [
     id: 'business-context',
     title: 'Business Context',
     description: 'Tell us about your business fundamentals',
-    fields: ['companyName', 'industry', 'averageDealSize', 'salesCycleLength', 'geographicFocus'],
+    fields: ['companyName', 'websiteUrl', 'industry', 'averageDealSize', 'salesCycleLength', 'geographicFocus', 'competitorUrls', 'customAdAngle'],
   },
   {
     id: 'marketing-state',
@@ -168,10 +199,50 @@ export const BRAND_RECOGNITION_OPTIONS = [
   { value: 'strong', label: 'Strong (Well-known in our space)' },
 ] as const;
 
-// Lead capture form
+// Platform definitions
+export const PLATFORMS = {
+  'google-ads': {
+    displayName: 'Google Ads',
+    channels: ['PMAX', 'Search', 'Demand Gen', 'Video', 'Display'],
+  },
+  'ott-ads': {
+    displayName: 'OTT Ads',
+    channels: ['Display', 'Online Video', 'Streaming CTV', 'Streaming Audio', 'Native'],
+  },
+  'linkedin': {
+    displayName: 'LinkedIn',
+    channels: ['LinkedIn Ads'],
+  },
+  'meta': {
+    displayName: 'Meta',
+    channels: ['Facebook & Instagram Ads'],
+  },
+} as const;
+
+// Lead capture form with attribution
 export interface LeadCaptureData {
   email: string;
   companySize?: string;
   role?: string;
   wantsCall: boolean;
+  attribution?: AttributionData;
+}
+
+// Zapier webhook payload
+export interface ZapierPayload {
+  timestamp: string;
+  email: string;
+  companyName: string;
+  companySize?: string;
+  role?: string;
+  websiteUrl: string;
+  competitorUrls: string[];
+  industry: string;
+  wantsCall: boolean;
+  budgetRecommendation: {
+    conservative: string;
+    aggressive: string;
+  };
+  brandTier: BrandMaturityTier;
+  attribution: AttributionData;
 }

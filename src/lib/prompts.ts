@@ -1,225 +1,321 @@
-import { FormData, BrandMaturityTier } from './types';
+import { FormData, AnalysisResult, BrandMaturityTier, PlatformRecommendation } from './types';
 
-export function buildAnalysisPrompt(data: FormData): string {
-  const { businessContext, marketingState, brandMaturity } = data;
+// Platform definitions for budget recommendations
+const PLATFORM_CONFIG = {
+  'google-ads': {
+    displayName: 'Google Ads',
+    channels: ['PMAX', 'Search', 'Demand Gen', 'Video', 'Display'],
+    minBudget: 1000,
+  },
+  'ott-ads': {
+    displayName: 'OTT Ads',
+    channels: ['Display', 'Online Video', 'Streaming CTV', 'Streaming Audio', 'Native'],
+    minBudget: 1500,
+  },
+  'linkedin': {
+    displayName: 'LinkedIn',
+    channels: ['LinkedIn Ads'],
+    minBudget: 1000,
+  },
+  'meta': {
+    displayName: 'Meta',
+    channels: ['Facebook & Instagram Ads'],
+    minBudget: 800,
+  },
+} as const;
+
+// Calculate budget recommendations based on tier and inputs
+export function calculateBudgetRecommendation(tier: BrandMaturityTier, formData: FormData) {
+  // Conservative: Always $1,000-$2,500, single platform
+  const conservativeBudget = getConservativeBudget(tier);
+  const conservativePlatform = getRecommendedSinglePlatform(formData);
   
-  return `You are an expert B2B marketing strategist specializing in the intersection of SEO, paid media, and AI Search visibility. Analyze the following business profile and provide strategic recommendations.
+  // Aggressive: Multi-platform, $X,000+ format, max $5,000+
+  const aggressiveBudget = getAggressiveBudget(tier, conservativeBudget);
+  const aggressivePlatforms = getRecommendedMultiPlatforms(formData, tier);
+  
+  return {
+    conservative: {
+      total: conservativeBudget,
+      displayTotal: `$${conservativeBudget.toLocaleString()}`,
+      platforms: [conservativePlatform],
+      summary: `${conservativePlatform.displayName} - $${conservativeBudget.toLocaleString()}`,
+    },
+    aggressive: {
+      total: aggressiveBudget,
+      displayTotal: `$${aggressiveBudget.toLocaleString()}+`,
+      platforms: aggressivePlatforms,
+      summary: formatAggressiveSummary(aggressivePlatforms, aggressiveBudget),
+    },
+  };
+}
 
-## Business Profile
+function getConservativeBudget(tier: BrandMaturityTier): number {
+  // Fixed range: $1,000 - $2,500
+  switch (tier) {
+    case 'emerging':
+      return 1000;
+    case 'developing':
+      return 1500;
+    case 'established':
+      return 2000;
+    case 'dominant':
+      return 2500;
+    default:
+      return 1500;
+  }
+}
 
-**Company:** ${businessContext.companyName}
-**Industry:** ${businessContext.industry}
-**Average Deal Size:** ${businessContext.averageDealSize ? `$${businessContext.averageDealSize.toLocaleString()}` : 'Not specified'}
-**Sales Cycle:** ${businessContext.salesCycleLength}
-**Geographic Focus:** ${businessContext.geographicFocus}
+function getAggressiveBudget(tier: BrandMaturityTier, conservativeBudget: number): number {
+  // Must be at least 25% higher than conservative, max $5,000
+  const minAggressive = Math.ceil(conservativeBudget * 1.35); // 35% higher to ensure > 25%
+  
+  let baseBudget: number;
+  switch (tier) {
+    case 'emerging':
+      baseBudget = 2500;
+      break;
+    case 'developing':
+      baseBudget = 3500;
+      break;
+    case 'established':
+      baseBudget = 4500;
+      break;
+    case 'dominant':
+      baseBudget = 5000;
+      break;
+    default:
+      baseBudget = 3500;
+  }
+  
+  // Ensure it's at least 25% higher and cap at $5,000
+  const finalBudget = Math.max(minAggressive, baseBudget);
+  return Math.min(finalBudget, 5000);
+}
+
+function getRecommendedSinglePlatform(formData: FormData): PlatformRecommendation {
+  const { industry, primaryGoal } = { 
+    industry: formData.businessContext.industry,
+    primaryGoal: formData.marketingState.primaryGoal 
+  };
+  
+  // B2B industries → LinkedIn
+  const b2bIndustries = ['B2B SaaS', 'Professional Services', 'Technology', 'Financial Services'];
+  if (b2bIndustries.includes(industry)) {
+    return {
+      platform: 'linkedin',
+      displayName: 'LinkedIn Ads',
+      budget: 1500,
+      channels: ['LinkedIn Ads'],
+    };
+  }
+  
+  // Lead generation focus → Google Ads
+  if (primaryGoal === 'leads' || primaryGoal === 'pipeline') {
+    return {
+      platform: 'google-ads',
+      displayName: 'Google Ads',
+      budget: 1500,
+      channels: ['Search', 'PMAX'],
+    };
+  }
+  
+  // Brand awareness → OTT
+  if (primaryGoal === 'brand') {
+    return {
+      platform: 'ott-ads',
+      displayName: 'OTT Ads',
+      budget: 1500,
+      channels: ['Streaming CTV', 'Online Video'],
+    };
+  }
+  
+  // Default to Google Ads
+  return {
+    platform: 'google-ads',
+    displayName: 'Google Ads',
+    budget: 1500,
+    channels: ['Search', 'PMAX'],
+  };
+}
+
+function getRecommendedMultiPlatforms(formData: FormData, tier: BrandMaturityTier): PlatformRecommendation[] {
+  const platforms: PlatformRecommendation[] = [];
+  const { industry, primaryGoal } = { 
+    industry: formData.businessContext.industry,
+    primaryGoal: formData.marketingState.primaryGoal 
+  };
+  
+  const b2bIndustries = ['B2B SaaS', 'Professional Services', 'Technology', 'Financial Services'];
+  const isB2B = b2bIndustries.includes(industry);
+  
+  // Always include Google Ads for aggressive
+  platforms.push({
+    platform: 'google-ads',
+    displayName: 'Google Ads',
+    budget: 1500,
+    channels: ['Search', 'PMAX', 'Demand Gen'],
+  });
+  
+  // Add LinkedIn for B2B
+  if (isB2B) {
+    platforms.push({
+      platform: 'linkedin',
+      displayName: 'LinkedIn',
+      budget: 1500,
+      channels: ['LinkedIn Ads'],
+    });
+  }
+  
+  // Add OTT for brand awareness or established+ tiers
+  if (primaryGoal === 'brand' || tier === 'established' || tier === 'dominant') {
+    platforms.push({
+      platform: 'ott-ads',
+      displayName: 'OTT',
+      budget: 1500,
+      channels: ['Streaming CTV', 'Online Video'],
+    });
+  }
+  
+  // Add Meta for consumer-facing or "all" goals
+  if (!isB2B || primaryGoal === 'all') {
+    platforms.push({
+      platform: 'meta',
+      displayName: 'Meta',
+      budget: 1000,
+      channels: ['Facebook & Instagram Ads'],
+    });
+  }
+  
+  return platforms;
+}
+
+function formatAggressiveSummary(platforms: PlatformRecommendation[], totalBudget: number): string {
+  const platformNames = platforms.map(p => p.displayName);
+  
+  if (platformNames.length === 1) {
+    return `${platformNames[0]} - $${totalBudget.toLocaleString()}+`;
+  }
+  
+  if (platformNames.length === 2) {
+    return `${platformNames.join(' + ')} - $${totalBudget.toLocaleString()}+`;
+  }
+  
+  // 3+ platforms: "Platform1 + Platform2 + Platform3 - $X,000+"
+  return `${platformNames.join(' + ')} - $${totalBudget.toLocaleString()}+`;
+}
+
+// Build the Claude analysis prompt
+export function buildAnalysisPrompt(formData: FormData): string {
+  const { businessContext, marketingState, brandMaturity } = formData;
+  
+  return `You are an expert B2B marketing strategist specializing in paid media and AI search visibility. Analyze the following business and provide strategic recommendations.
+
+## Business Context
+- Company: ${businessContext.companyName}
+- Website: ${businessContext.websiteUrl}
+- Industry: ${businessContext.industry}
+- Average Deal Size: ${businessContext.averageDealSize ? `$${businessContext.averageDealSize.toLocaleString()}` : 'Not specified'}
+- Sales Cycle: ${businessContext.salesCycleLength || 'Not specified'}
+- Geographic Focus: ${businessContext.geographicFocus}
+${businessContext.competitorUrls?.filter(u => u).length ? `- Competitors: ${businessContext.competitorUrls.filter(u => u).join(', ')}` : ''}
+${businessContext.customAdAngle ? `- Unique Value Proposition: ${businessContext.customAdAngle}` : ''}
 
 ## Current Marketing State
+- Monthly SEO Budget: ${marketingState.monthlySeoBudget ? `$${marketingState.monthlySeoBudget.toLocaleString()}` : 'None/Unknown'}
+- Monthly Paid Media Budget: ${marketingState.monthlyPaidMediaBudget ? `$${marketingState.monthlyPaidMediaBudget.toLocaleString()}` : 'None/Unknown'}
+- Primary Goal: ${marketingState.primaryGoal}
+- Decline Experienced: ${marketingState.declineExperienced}
 
-**Monthly SEO Spend:** ${marketingState.monthlySeoBudget ? `$${marketingState.monthlySeoBudget.toLocaleString()}` : 'Not specified'}
-**Monthly Paid Media Spend:** ${marketingState.monthlyPaidMediaBudget ? `$${marketingState.monthlyPaidMediaBudget.toLocaleString()}` : 'None currently'}
-**Primary Goal:** ${marketingState.primaryGoal}
-**Decline Experienced:** ${marketingState.declineExperienced}
+## Brand Maturity
+- Brand Recognition: ${brandMaturity.brandRecognition}
+- Existing Branded Search: ${brandMaturity.existingBrandedSearch}
+- Competitor Awareness: ${brandMaturity.competitorAwareness}
 
-## Brand Maturity Signals
-
-**Brand Recognition:** ${brandMaturity.brandRecognition}
-**Existing Branded Search Volume:** ${brandMaturity.existingBrandedSearch}
-**Competitor Awareness:** ${brandMaturity.competitorAwareness}
-
----
-
-Provide a comprehensive analysis in the following JSON structure. Be specific, actionable, and grounded in the reality of AI Search dynamics (ChatGPT, Perplexity, Google AI Overviews, etc.):
+Based on this information, provide a comprehensive analysis in the following JSON format:
 
 {
   "brandGapAnalysis": {
     "tier": "emerging|developing|established|dominant",
-    "score": <1-100>,
-    "brandDemandGap": "<2-3 sentence explanation of the gap between current brand awareness and what's needed for AI Search visibility>",
+    "score": <number 1-100>,
+    "brandDemandGap": "<2-3 sentence analysis of the gap between brand awareness and market demand>",
     "aiSearchConstraints": ["<constraint 1>", "<constraint 2>", "<constraint 3>"],
-    "paidMediaPotential": "<1-2 sentence assessment of how paid media can bridge this gap>"
-  },
-  "budgetRecommendation": {
-    "type": "${marketingState.monthlyPaidMediaBudget && marketingState.monthlyPaidMediaBudget > 0 ? 'existing' : 'new'}",
-    "conservative": {
-      "total": <monthly spend>,
-      "brandSearch": <allocation>,
-      "nonBrandSearch": <allocation>,
-      "linkedin": <allocation>,
-      "youtube": <allocation>,
-      "display": <allocation>
-    },
-    "aggressive": {
-      "total": <monthly spend>,
-      "brandSearch": <allocation>,
-      "nonBrandSearch": <allocation>,
-      "linkedin": <allocation>,
-      "youtube": <allocation>,
-      "display": <allocation>
-    },
-    ${marketingState.monthlyPaidMediaBudget && marketingState.monthlyPaidMediaBudget > 0 ? '' : '"minimumViable": <minimum monthly spend that could show results>,\n    "warningThreshold": <spend below which results are unlikely>,'}
-    "rationale": "<2-3 sentences explaining the budget logic based on deal size, sales cycle, and brand maturity>"
+    "paidMediaPotential": "<2-3 sentence analysis of paid media opportunity>"
   },
   "messagingRecommendation": {
     "adAngles": [
       {
         "type": "problem-aware|brand-authority|ai-search-capture|social-proof|differentiation",
-        "headline": "<compelling headline under 60 chars>",
-        "subheadline": "<supporting line under 90 chars>",
-        "valueProposition": "<1 sentence value prop>",
-        "ctaText": "<CTA button text>",
+        "headline": "<compelling headline under 60 characters>",
+        "subheadline": "<supporting subheadline under 90 characters>",
+        "valueProposition": "<1-2 sentence value prop>",
+        "ctaText": "<call to action text>",
         "targetFunnelStage": "awareness|consideration|decision"
       }
     ],
     "toneGuidance": "<guidance on brand voice and messaging tone>",
     "keyDifferentiators": ["<differentiator 1>", "<differentiator 2>", "<differentiator 3>"]
   },
-  "executiveSummary": "<3-4 sentence summary of the situation and core recommendation>",
-  "nextSteps": ["<immediate action 1>", "<action 2>", "<action 3>"]
+  "executiveSummary": "<3-4 sentence executive summary of the analysis and top recommendation>",
+  "nextSteps": ["<actionable next step 1>", "<actionable next step 2>", "<actionable next step 3>", "<actionable next step 4>"]
 }
 
-## Key Principles to Apply:
+IMPORTANT GUIDELINES:
+1. Provide exactly 3 ad angles with different types
+2. Make headlines compelling and specific to the industry
+3. Consider the custom value proposition if provided when crafting messaging
+4. Base tier assessment on: brand recognition (40%), existing branded search (30%), competitor awareness (30%)
+5. AI search constraints should focus on how AI platforms like ChatGPT and Perplexity evaluate brand authority
+6. Next steps should be specific, actionable, and prioritized
 
-1. **AI Search Visibility Connection**: Explain how branded demand influences AI model training and citation likelihood. Don't say "SEO is dead" - frame it as "SEO outcomes are now influenced by branded demand."
-
-2. **Brand Lift → Demand Capture Pipeline**: Show how paid media investments (especially YouTube, LinkedIn, and branded search) create the search demand that gets captured both in traditional and AI search.
-
-3. **Budget Scaling**: 
-   - For deal sizes under $10k: Start conservative, prove ROI quickly
-   - For deal sizes $10k-$50k: Balanced approach with brand and demand capture
-   - For deal sizes $50k+: Heavier brand investment, longer attribution windows
-
-4. **Realistic Expectations**: Be honest about what budget levels can and cannot achieve. Don't over-promise.
-
-5. **Ad Angles**: Generate 3-5 distinct messaging angles that avoid generic B2B clichés. Make them specific to the industry and situation.
-
-Return ONLY the JSON object, no additional text.`;
+Respond with ONLY the JSON object, no additional text.`;
 }
 
-export function calculateBrandTier(data: FormData): BrandMaturityTier {
-  const { brandMaturity, marketingState } = data;
-  
-  let score = 0;
-  
-  // Brand recognition scoring
-  if (brandMaturity.brandRecognition === 'strong') score += 35;
-  else if (brandMaturity.brandRecognition === 'moderate') score += 20;
-  else score += 5;
-  
-  // Branded search scoring
-  if (brandMaturity.existingBrandedSearch === 'yes') score += 30;
-  else if (brandMaturity.existingBrandedSearch === 'unknown') score += 10;
-  
-  // Competitor awareness scoring
-  if (brandMaturity.competitorAwareness === 'high') score += 20;
-  else if (brandMaturity.competitorAwareness === 'moderate') score += 12;
-  else score += 5;
-  
-  // Existing paid media bonus
-  if (marketingState.monthlyPaidMediaBudget && marketingState.monthlyPaidMediaBudget > 10000) {
-    score += 15;
-  } else if (marketingState.monthlyPaidMediaBudget && marketingState.monthlyPaidMediaBudget > 5000) {
-    score += 10;
+// Parse and enhance the Claude response with budget calculations
+export function parseAnalysisResponse(response: string, formData: FormData): AnalysisResult {
+  // Clean up the response - remove markdown code blocks if present
+  let cleanResponse = response.trim();
+  if (cleanResponse.startsWith('```json')) {
+    cleanResponse = cleanResponse.slice(7);
+  }
+  if (cleanResponse.startsWith('```')) {
+    cleanResponse = cleanResponse.slice(3);
+  }
+  if (cleanResponse.endsWith('```')) {
+    cleanResponse = cleanResponse.slice(0, -3);
   }
   
-  // Determine tier
-  if (score >= 80) return 'dominant';
-  if (score >= 55) return 'established';
-  if (score >= 30) return 'developing';
-  return 'emerging';
+  const parsed = JSON.parse(cleanResponse);
+  
+  // Calculate budget recommendations based on the tier
+  const budgetRecommendation = calculateBudgetRecommendation(
+    parsed.brandGapAnalysis.tier,
+    formData
+  );
+  
+  return {
+    ...parsed,
+    budgetRecommendation: {
+      type: formData.marketingState.monthlyPaidMediaBudget ? 'existing' : 'new',
+      ...budgetRecommendation,
+      rationale: generateBudgetRationale(parsed.brandGapAnalysis.tier, formData),
+    },
+    semrushDisclaimer: 'Budget estimates provided by SEMRush and may not be fully accurate.',
+  };
 }
 
-export function generateFallbackAnalysis(data: FormData): string {
-  const tier = calculateBrandTier(data);
-  const { businessContext, marketingState, brandMaturity } = data;
+function generateBudgetRationale(tier: BrandMaturityTier, formData: FormData): string {
+  const { industry, primaryGoal } = { 
+    industry: formData.businessContext.industry,
+    primaryGoal: formData.marketingState.primaryGoal 
+  };
   
-  const isExistingBuyer = marketingState.monthlyPaidMediaBudget && marketingState.monthlyPaidMediaBudget > 0;
-  const baseBudget = isExistingBuyer 
-    ? marketingState.monthlyPaidMediaBudget! 
-    : Math.max(3000, (businessContext.averageDealSize || 10000) * 0.1);
+  const tierDescriptions: Record<BrandMaturityTier, string> = {
+    emerging: 'an emerging brand with significant growth opportunity',
+    developing: 'a developing brand building market presence',
+    established: 'an established brand ready for expansion',
+    dominant: 'a dominant brand optimizing market position',
+  };
   
-  const conservativeTotal = Math.round(baseBudget * 1.2);
-  const aggressiveTotal = Math.round(baseBudget * 2);
-  
-  return JSON.stringify({
-    brandGapAnalysis: {
-      tier,
-      score: tier === 'dominant' ? 85 : tier === 'established' ? 65 : tier === 'developing' ? 45 : 25,
-      brandDemandGap: `Your brand is currently in the ${tier} tier. ${
-        tier === 'emerging' ? 'AI search engines have limited awareness of your brand, meaning you\'re unlikely to be cited in AI-generated responses.' :
-        tier === 'developing' ? 'You have some brand signals, but not enough consistent presence to reliably appear in AI search results.' :
-        tier === 'established' ? 'Your brand has good recognition, but there\'s room to strengthen AI search visibility through targeted brand campaigns.' :
-        'Your brand has strong recognition and is well-positioned for AI search visibility.'
-      }`,
-      aiSearchConstraints: [
-        tier === 'emerging' || tier === 'developing' ? 'Limited brand mention volume across the web' : 'Competition from well-funded alternatives',
-        'Insufficient branded search demand signals',
-        marketingState.declineExperienced !== 'none' ? 'Declining organic visibility reducing brand touchpoints' : 'Need for consistent brand presence across channels'
-      ],
-      paidMediaPotential: `Paid media can ${tier === 'emerging' ? 'establish' : tier === 'developing' ? 'accelerate' : 'reinforce'} brand recognition, creating the search demand that AI systems use as quality signals.`
-    },
-    budgetRecommendation: {
-      type: isExistingBuyer ? 'existing' : 'new',
-      conservative: {
-        total: conservativeTotal,
-        brandSearch: Math.round(conservativeTotal * 0.2),
-        nonBrandSearch: Math.round(conservativeTotal * 0.3),
-        linkedin: Math.round(conservativeTotal * 0.25),
-        youtube: Math.round(conservativeTotal * 0.15),
-        display: Math.round(conservativeTotal * 0.1)
-      },
-      aggressive: {
-        total: aggressiveTotal,
-        brandSearch: Math.round(aggressiveTotal * 0.15),
-        nonBrandSearch: Math.round(aggressiveTotal * 0.25),
-        linkedin: Math.round(aggressiveTotal * 0.3),
-        youtube: Math.round(aggressiveTotal * 0.2),
-        display: Math.round(aggressiveTotal * 0.1)
-      },
-      ...(isExistingBuyer ? {} : {
-        minimumViable: Math.round(baseBudget * 0.8),
-        warningThreshold: Math.round(baseBudget * 0.5)
-      }),
-      rationale: `Based on your ${businessContext.salesCycleLength} sales cycle and ${brandMaturity.brandRecognition} brand recognition, we recommend ${isExistingBuyer ? 'optimizing your current spend with more brand-focused allocation' : 'starting with a balanced approach that builds brand while capturing existing demand'}.`
-    },
-    messagingRecommendation: {
-      adAngles: [
-        {
-          type: 'problem-aware',
-          headline: `${businessContext.industry} Leaders Are Losing Visibility`,
-          subheadline: 'AI search is changing how buyers find solutions. Are you being found?',
-          valueProposition: `We help ${businessContext.industry.toLowerCase()} companies build the brand presence that AI search engines reward.`,
-          ctaText: 'See How You Compare',
-          targetFunnelStage: 'awareness'
-        },
-        {
-          type: 'brand-authority',
-          headline: `The ${businessContext.industry} Authority`,
-          subheadline: 'Trusted by companies who demand results',
-          valueProposition: 'Industry-leading expertise backed by proven outcomes.',
-          ctaText: 'Learn Our Approach',
-          targetFunnelStage: 'consideration'
-        },
-        {
-          type: 'ai-search-capture',
-          headline: 'Stop Losing Deals to AI Recommendations',
-          subheadline: 'Your competitors are being cited. You should be too.',
-          valueProposition: 'Build the brand signals that make AI search engines recommend you.',
-          ctaText: 'Get Your Visibility Report',
-          targetFunnelStage: 'awareness'
-        }
-      ],
-      toneGuidance: `Given your ${brandMaturity.brandRecognition} brand recognition, maintain a ${brandMaturity.brandRecognition === 'strong' ? 'confident, authoritative' : 'credible, proof-focused'} tone. Focus on outcomes over features.`,
-      keyDifferentiators: [
-        'Deep industry expertise',
-        'Proven methodology',
-        'Measurable outcomes'
-      ]
-    },
-    executiveSummary: `${businessContext.companyName} is currently at the ${tier} tier of brand maturity. ${marketingState.declineExperienced !== 'none' ? 'The organic visibility decline you\'re experiencing is likely connected to shifting search behavior toward AI-powered platforms.' : ''} The path forward involves strategic paid media investment that builds brand awareness while capturing existing demand. This creates the virtuous cycle where brand lift drives search demand, which improves both traditional and AI search visibility.`,
-    nextSteps: [
-      `${isExistingBuyer ? 'Reallocate' : 'Establish'} budget for brand-focused campaigns on LinkedIn and YouTube`,
-      'Set up branded search campaigns to capture growing brand demand',
-      'Schedule a strategy call to discuss implementation timeline'
-    ]
-  });
+  return `Based on your position as ${tierDescriptions[tier]} in the ${industry} industry, we recommend starting with a focused single-platform approach (conservative) to validate messaging and targeting. The aggressive option adds multi-platform reach to accelerate brand awareness and capture demand across the buyer journey.`;
 }
