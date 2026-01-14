@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { BrandHeader } from '@/components/Logo';
 import { ProgressIndicator } from '@/components/ProgressIndicator';
 import { BusinessContextForm } from '@/components/BusinessContextForm';
@@ -8,13 +8,8 @@ import { MarketingStateForm } from '@/components/MarketingStateForm';
 import { BrandMaturityForm } from '@/components/BrandMaturityForm';
 import { LeadCaptureForm } from '@/components/LeadCaptureForm';
 import { ResultsDisplay } from '@/components/ResultsDisplay';
-import { 
-  FormData, 
-  AnalysisResult, 
-  LeadCaptureData,
-  AttributionData,
-  FORM_STEPS 
-} from '@/lib/types';
+import { ChilipiperPopup } from '@/components/ChilipiperPopup';
+import { FormData, AnalysisResult, LeadCaptureData, AttributionData, FORM_STEPS } from '@/lib/types';
 
 type AppStep = 'form' | 'lead-capture' | 'analyzing' | 'results';
 
@@ -25,9 +20,14 @@ export default function Home() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [leadData, setLeadData] = useState<LeadCaptureData | null>(null);
   
+  // Chilipiper popup state
+  const [isSchedulerOpen, setIsSchedulerOpen] = useState(false);
+  const popupTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const hasShownAutoPopup = useRef(false);
+
   // Attribution tracking state
   const [attribution, setAttribution] = useState<AttributionData>({});
-  
+
   const [formData, setFormData] = useState<FormData>({
     businessContext: {
       companyName: '',
@@ -56,9 +56,8 @@ export default function Home() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
-      
       const attributionData: AttributionData = {};
-      
+
       // Capture UTM parameters
       const utmSource = params.get('utm_source');
       const utmMedium = params.get('utm_medium');
@@ -66,16 +65,16 @@ export default function Home() {
       const utmContent = params.get('utm_content');
       const utmTerm = params.get('utm_term');
       const gclid = params.get('gclid');
-      
+
       if (utmSource) attributionData.utm_source = utmSource;
       if (utmMedium) attributionData.utm_medium = utmMedium;
       if (utmCampaign) attributionData.utm_campaign = utmCampaign;
       if (utmContent) attributionData.utm_content = utmContent;
       if (utmTerm) attributionData.utm_term = utmTerm;
       if (gclid) attributionData.gclid = gclid;
-      
+
       setAttribution(attributionData);
-      
+
       // Log for debugging (remove in production)
       if (Object.keys(attributionData).length > 0) {
         console.log('Attribution captured:', attributionData);
@@ -83,10 +82,29 @@ export default function Home() {
     }
   }, []);
 
+  // Auto-popup timer when results are shown
+  useEffect(() => {
+    if (appStep === 'results' && !hasShownAutoPopup.current) {
+      popupTimerRef.current = setTimeout(() => {
+        setIsSchedulerOpen(true);
+        hasShownAutoPopup.current = true;
+      }, 15000); // 15 seconds
+    }
+
+    return () => {
+      if (popupTimerRef.current) {
+        clearTimeout(popupTimerRef.current);
+      }
+    };
+  }, [appStep]);
+
   const updateFormData = (section: keyof FormData, data: Partial<FormData[keyof FormData]>) => {
     setFormData(prev => ({
       ...prev,
-      [section]: { ...prev[section], ...data },
+      [section]: {
+        ...prev[section],
+        ...data,
+      },
     }));
   };
 
@@ -112,6 +130,7 @@ export default function Home() {
       attribution,
     };
     setLeadData(leadWithAttribution);
+
     setAppStep('analyzing');
     setIsAnalyzing(true);
 
@@ -119,7 +138,7 @@ export default function Home() {
       const response = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           formData,
           leadData: leadWithAttribution,
         }),
@@ -131,7 +150,7 @@ export default function Home() {
 
       const result = await response.json();
       setAnalysisResult(result);
-      
+
       // Send to Zapier webhook
       try {
         await fetch('/api/zapier', {
@@ -147,7 +166,7 @@ export default function Home() {
         console.error('Zapier webhook error:', zapierError);
         // Don't block results display if Zapier fails
       }
-      
+
       setAppStep('results');
     } catch (error) {
       console.error('Analysis error:', error);
@@ -158,7 +177,54 @@ export default function Home() {
     }
   };
 
+  const handleRegenerateMessaging = async () => {
+    if (!analysisResult) return;
+
+    try {
+      // Get existing headlines to avoid repeating
+      const existingAngles = analysisResult.messagingRecommendation.adAngles.map(a => a.headline);
+
+      const response = await fetch('/api/regenerate-messaging', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          formData,
+          existingAngles,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Regeneration failed');
+      }
+
+      const newMessaging = await response.json();
+
+      // Update analysis result with new messaging
+      setAnalysisResult(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          messagingRecommendation: {
+            adAngles: newMessaging.adAngles,
+            toneGuidance: newMessaging.toneGuidance,
+            keyDifferentiators: newMessaging.keyDifferentiators,
+          },
+        };
+      });
+    } catch (error) {
+      console.error('Regenerate messaging error:', error);
+    }
+  };
+
   const handleStartOver = () => {
+    // Clear the auto-popup flag
+    hasShownAutoPopup.current = false;
+    
+    // Clear popup timer
+    if (popupTimerRef.current) {
+      clearTimeout(popupTimerRef.current);
+    }
+
     setCurrentFormStep(0);
     setAppStep('form');
     setAnalysisResult(null);
@@ -188,10 +254,19 @@ export default function Home() {
     });
   };
 
+  const handleOpenScheduler = () => {
+    // Cancel auto-popup timer if user manually opens
+    if (popupTimerRef.current) {
+      clearTimeout(popupTimerRef.current);
+    }
+    hasShownAutoPopup.current = true;
+    setIsSchedulerOpen(true);
+  };
+
   const canProceed = () => {
     const step = FORM_STEPS[currentFormStep];
     if (step.id === 'business-context') {
-      return formData.businessContext.companyName.trim() !== '' && 
+      return formData.businessContext.companyName.trim() !== '' &&
              formData.businessContext.industry !== '' &&
              formData.businessContext.websiteUrl.trim() !== '';
     }
@@ -229,16 +304,16 @@ export default function Home() {
   return (
     <main className="min-h-screen pb-12">
       <BrandHeader />
-      
+
       <div className="max-w-4xl mx-auto px-4">
         {appStep === 'form' && (
           <>
-            <ProgressIndicator 
-              currentStep={currentFormStep} 
+            <ProgressIndicator
+              currentStep={currentFormStep}
               totalSteps={FORM_STEPS.length}
               steps={FORM_STEPS}
             />
-            
+
             <div className="mt-8">
               {renderFormStep()}
             </div>
@@ -248,15 +323,13 @@ export default function Home() {
               <button
                 onClick={handleBack}
                 disabled={currentFormStep === 0}
-                className={`px-6 py-3 rounded-lg font-semibold transition-all
-                  ${currentFormStep === 0 
-                    ? 'opacity-50 cursor-not-allowed text-abstrakt-text-dim' 
+                className={`px-6 py-3 rounded-lg font-semibold transition-all ${currentFormStep === 0
+                    ? 'opacity-50 cursor-not-allowed text-abstrakt-text-dim'
                     : 'text-abstrakt-text-muted hover:text-white'
                   }`}
               >
                 ← Back
               </button>
-              
               <button
                 onClick={handleNext}
                 disabled={!canProceed()}
@@ -269,7 +342,7 @@ export default function Home() {
         )}
 
         {appStep === 'lead-capture' && (
-          <LeadCaptureForm 
+          <LeadCaptureForm
             onSubmit={handleLeadCapture}
             companyName={formData.businessContext.companyName}
           />
@@ -282,20 +355,27 @@ export default function Home() {
               Analyzing Your Brand Position
             </h2>
             <p className="text-abstrakt-text-muted text-center max-w-md">
-              Our AI is evaluating your business context, market position, and generating 
-              personalized recommendations...
+              Our AI is evaluating your business context, market position, and generating personalized recommendations...
             </p>
           </div>
         )}
 
         {appStep === 'results' && analysisResult && (
-          <ResultsDisplay 
+          <ResultsDisplay
             result={analysisResult}
             formData={formData}
             onStartOver={handleStartOver}
+            onRegenerateMessaging={handleRegenerateMessaging}
+            onOpenScheduler={handleOpenScheduler}
           />
         )}
       </div>
+
+      {/* Chilipiper Popup */}
+      <ChilipiperPopup
+        isOpen={isSchedulerOpen}
+        onClose={() => setIsSchedulerOpen(false)}
+      />
     </main>
   );
 }
