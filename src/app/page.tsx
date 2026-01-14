@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { BrandHeader } from '@/components/Logo';
 import { ProgressIndicator } from '@/components/ProgressIndicator';
 import { BusinessContextForm } from '@/components/BusinessContextForm';
@@ -10,176 +10,215 @@ import { LeadCaptureForm } from '@/components/LeadCaptureForm';
 import { ResultsDisplay } from '@/components/ResultsDisplay';
 import { 
   FormData, 
-  BusinessContextInputs, 
-  MarketingStateInputs, 
-  BrandMaturityInputs,
-  AnalysisResult,
+  AnalysisResult, 
   LeadCaptureData,
+  AttributionData,
   FORM_STEPS 
 } from '@/lib/types';
 
-type AppState = 'form' | 'lead-capture' | 'loading' | 'results';
-
-const initialBusinessContext: BusinessContextInputs = {
-  companyName: '',
-  industry: '',
-  averageDealSize: null,
-  salesCycleLength: '',
-  geographicFocus: 'national',
-};
-
-const initialMarketingState: MarketingStateInputs = {
-  monthlySeoBudget: null,
-  monthlyPaidMediaBudget: null,
-  primaryGoal: 'leads',
-  declineExperienced: 'none',
-};
-
-const initialBrandMaturity: BrandMaturityInputs = {
-  brandRecognition: 'moderate',
-  existingBrandedSearch: 'unknown',
-  competitorAwareness: 'moderate',
-};
+type AppStep = 'form' | 'lead-capture' | 'analyzing' | 'results';
 
 export default function Home() {
-  const [appState, setAppState] = useState<AppState>('form');
-  const [currentStep, setCurrentStep] = useState(0);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [currentFormStep, setCurrentFormStep] = useState(0);
+  const [appStep, setAppStep] = useState<AppStep>('form');
+  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [leadData, setLeadData] = useState<LeadCaptureData | null>(null);
+  
+  // Attribution tracking state
+  const [attribution, setAttribution] = useState<AttributionData>({});
   
   const [formData, setFormData] = useState<FormData>({
-    businessContext: initialBusinessContext,
-    marketingState: initialMarketingState,
-    brandMaturity: initialBrandMaturity,
+    businessContext: {
+      companyName: '',
+      industry: '',
+      averageDealSize: null,
+      salesCycleLength: '',
+      geographicFocus: 'national',
+      websiteUrl: '',
+      competitorUrls: ['', '', ''],
+      customAdAngle: '',
+    },
+    marketingState: {
+      monthlySeoBudget: null,
+      monthlyPaidMediaBudget: null,
+      primaryGoal: 'leads',
+      declineExperienced: 'none',
+    },
+    brandMaturity: {
+      brandRecognition: 'moderate',
+      existingBrandedSearch: 'unknown',
+      competitorAwareness: 'moderate',
+    },
   });
-  
-  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
 
-  const updateBusinessContext = useCallback((updates: Partial<BusinessContextInputs>) => {
-    setFormData(prev => ({
-      ...prev,
-      businessContext: { ...prev.businessContext, ...updates }
-    }));
-  }, []);
-
-  const updateMarketingState = useCallback((updates: Partial<MarketingStateInputs>) => {
-    setFormData(prev => ({
-      ...prev,
-      marketingState: { ...prev.marketingState, ...updates }
-    }));
-  }, []);
-
-  const updateBrandMaturity = useCallback((updates: Partial<BrandMaturityInputs>) => {
-    setFormData(prev => ({
-      ...prev,
-      brandMaturity: { ...prev.brandMaturity, ...updates }
-    }));
-  }, []);
-
-  const isStepValid = (step: number): boolean => {
-    switch (step) {
-      case 0:
-        return !!(formData.businessContext.companyName && formData.businessContext.industry);
-      case 1:
-        return true; // Marketing state is optional
-      case 2:
-        return true; // Brand maturity has defaults
-      default:
-        return false;
+  // Capture UTM parameters and GCLID on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      
+      const attributionData: AttributionData = {};
+      
+      // Capture UTM parameters
+      const utmSource = params.get('utm_source');
+      const utmMedium = params.get('utm_medium');
+      const utmCampaign = params.get('utm_campaign');
+      const utmContent = params.get('utm_content');
+      const utmTerm = params.get('utm_term');
+      const gclid = params.get('gclid');
+      
+      if (utmSource) attributionData.utm_source = utmSource;
+      if (utmMedium) attributionData.utm_medium = utmMedium;
+      if (utmCampaign) attributionData.utm_campaign = utmCampaign;
+      if (utmContent) attributionData.utm_content = utmContent;
+      if (utmTerm) attributionData.utm_term = utmTerm;
+      if (gclid) attributionData.gclid = gclid;
+      
+      setAttribution(attributionData);
+      
+      // Log for debugging (remove in production)
+      if (Object.keys(attributionData).length > 0) {
+        console.log('Attribution captured:', attributionData);
+      }
     }
+  }, []);
+
+  const updateFormData = (section: keyof FormData, data: Partial<FormData[keyof FormData]>) => {
+    setFormData(prev => ({
+      ...prev,
+      [section]: { ...prev[section], ...data },
+    }));
   };
 
   const handleNext = () => {
-    if (currentStep < FORM_STEPS.length - 1) {
-      setCurrentStep(prev => prev + 1);
+    if (currentFormStep < FORM_STEPS.length - 1) {
+      setCurrentFormStep(prev => prev + 1);
     } else {
-      // Last step - move to lead capture
-      setAppState('lead-capture');
+      // Form complete, show lead capture
+      setAppStep('lead-capture');
     }
   };
 
   const handleBack = () => {
-    if (currentStep > 0) {
-      setCurrentStep(prev => prev - 1);
+    if (currentFormStep > 0) {
+      setCurrentFormStep(prev => prev - 1);
     }
   };
 
-  const handleLeadSubmit = async (leadData: LeadCaptureData) => {
-    setIsLoading(true);
-    setError(null);
-    setAppState('loading');
+  const handleLeadCapture = async (data: LeadCaptureData) => {
+    // Add attribution to lead data
+    const leadWithAttribution = {
+      ...data,
+      attribution,
+    };
+    setLeadData(leadWithAttribution);
+    setAppStep('analyzing');
+    setIsAnalyzing(true);
 
     try {
-      // Call analysis API
-      console.log('Calling /api/analyze with:', formData);
-      const analysisResponse = await fetch('/api/analyze', {
+      const response = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({ 
+          formData,
+          leadData: leadWithAttribution,
+        }),
       });
 
-      console.log('Analysis response status:', analysisResponse.status);
+      if (!response.ok) {
+        throw new Error('Analysis failed');
+      }
+
+      const result = await response.json();
+      setAnalysisResult(result);
       
-      const analysisData = await analysisResponse.json();
-      console.log('Analysis response data:', analysisData);
-
-      if (!analysisResponse.ok) {
-        throw new Error(analysisData.error || `Analysis failed with status ${analysisResponse.status}`);
-      }
-
-      // Validate the response has required fields
-      if (!analysisData.brandGapAnalysis || !analysisData.budgetRecommendation) {
-        console.error('Invalid analysis response structure:', analysisData);
-        throw new Error('Received incomplete analysis data');
-      }
-
-      setAnalysisResult(analysisData);
-
-      // Send email report (don't fail if this errors)
+      // Send to Zapier webhook
       try {
-        console.log('Calling /api/generate-pdf...');
-        const pdfResponse = await fetch('/api/generate-pdf', {
+        await fetch('/api/zapier', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ formData, analysis: analysisData, leadData }),
+          body: JSON.stringify({
+            formData,
+            leadData: leadWithAttribution,
+            analysisResult: result,
+          }),
         });
-        console.log('PDF response status:', pdfResponse.status);
-      } catch (emailError) {
-        console.error('Email send failed (non-blocking):', emailError);
-        // Don't fail the whole flow if email fails
+      } catch (zapierError) {
+        console.error('Zapier webhook error:', zapierError);
+        // Don't block results display if Zapier fails
       }
-
-      setAppState('results');
-    } catch (err: any) {
-      console.error('Analysis error:', err);
-      setError(err.message || 'Something went wrong. Please try again.');
-      setAppState('lead-capture');
+      
+      setAppStep('results');
+    } catch (error) {
+      console.error('Analysis error:', error);
+      // Handle error - show error state
+      setAppStep('form');
     } finally {
-      setIsLoading(false);
+      setIsAnalyzing(false);
     }
+  };
+
+  const handleStartOver = () => {
+    setCurrentFormStep(0);
+    setAppStep('form');
+    setAnalysisResult(null);
+    setLeadData(null);
+    setFormData({
+      businessContext: {
+        companyName: '',
+        industry: '',
+        averageDealSize: null,
+        salesCycleLength: '',
+        geographicFocus: 'national',
+        websiteUrl: '',
+        competitorUrls: ['', '', ''],
+        customAdAngle: '',
+      },
+      marketingState: {
+        monthlySeoBudget: null,
+        monthlyPaidMediaBudget: null,
+        primaryGoal: 'leads',
+        declineExperienced: 'none',
+      },
+      brandMaturity: {
+        brandRecognition: 'moderate',
+        existingBrandedSearch: 'unknown',
+        competitorAwareness: 'moderate',
+      },
+    });
+  };
+
+  const canProceed = () => {
+    const step = FORM_STEPS[currentFormStep];
+    if (step.id === 'business-context') {
+      return formData.businessContext.companyName.trim() !== '' && 
+             formData.businessContext.industry !== '' &&
+             formData.businessContext.websiteUrl.trim() !== '';
+    }
+    return true;
   };
 
   const renderFormStep = () => {
-    switch (currentStep) {
-      case 0:
+    switch (FORM_STEPS[currentFormStep].id) {
+      case 'business-context':
         return (
           <BusinessContextForm
             data={formData.businessContext}
-            onChange={updateBusinessContext}
+            onChange={(data) => updateFormData('businessContext', data)}
           />
         );
-      case 1:
+      case 'marketing-state':
         return (
           <MarketingStateForm
             data={formData.marketingState}
-            onChange={updateMarketingState}
+            onChange={(data) => updateFormData('marketingState', data)}
           />
         );
-      case 2:
+      case 'brand-maturity':
         return (
           <BrandMaturityForm
             data={formData.brandMaturity}
-            onChange={updateBrandMaturity}
+            onChange={(data) => updateFormData('brandMaturity', data)}
           />
         );
       default:
@@ -188,123 +227,75 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen pb-16">
+    <main className="min-h-screen pb-12">
       <BrandHeader />
       
       <div className="max-w-4xl mx-auto px-4">
-        {appState === 'form' && (
+        {appStep === 'form' && (
           <>
-            <ProgressIndicator currentStep={currentStep} />
+            <ProgressIndicator 
+              currentStep={currentFormStep} 
+              totalSteps={FORM_STEPS.length}
+              steps={FORM_STEPS}
+            />
             
-            <div className="mb-8">
-              <h2 className="text-xl font-heading font-semibold text-white mb-2">
-                {FORM_STEPS[currentStep]?.title}
-              </h2>
-              <p className="text-abstrakt-text-muted">
-                {FORM_STEPS[currentStep]?.description}
-              </p>
+            <div className="mt-8">
+              {renderFormStep()}
             </div>
 
-            {renderFormStep()}
-
-            {/* Navigation buttons */}
-            <div className="flex justify-between mt-8 pt-6 border-t border-abstrakt-card-border">
+            {/* Navigation */}
+            <div className="flex justify-between mt-8">
               <button
                 onClick={handleBack}
-                disabled={currentStep === 0}
-                className={`
-                  abstrakt-button-outline
-                  ${currentStep === 0 ? 'opacity-30 cursor-not-allowed' : ''}
-                `}
+                disabled={currentFormStep === 0}
+                className={`px-6 py-3 rounded-lg font-semibold transition-all
+                  ${currentFormStep === 0 
+                    ? 'opacity-50 cursor-not-allowed text-abstrakt-text-dim' 
+                    : 'text-abstrakt-text-muted hover:text-white'
+                  }`}
               >
                 ← Back
               </button>
               
               <button
                 onClick={handleNext}
-                disabled={!isStepValid(currentStep)}
-                className={`
-                  abstrakt-button
-                  ${!isStepValid(currentStep) ? 'opacity-50 cursor-not-allowed' : ''}
-                `}
+                disabled={!canProceed()}
+                className={`abstrakt-button ${!canProceed() ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
-                {currentStep === FORM_STEPS.length - 1 ? 'Get My Analysis →' : 'Continue →'}
+                {currentFormStep === FORM_STEPS.length - 1 ? 'Get My Analysis' : 'Continue →'}
               </button>
             </div>
           </>
         )}
 
-        {appState === 'lead-capture' && (
-          <>
-            {error && (
-              <div className="mb-6 p-4 bg-abstrakt-error/20 border border-abstrakt-error rounded-lg text-abstrakt-error">
-                {error}
-              </div>
-            )}
-            <LeadCaptureForm onSubmit={handleLeadSubmit} isLoading={isLoading} />
-            <button
-              onClick={() => setAppState('form')}
-              className="mt-6 w-full text-center text-abstrakt-text-muted hover:text-abstrakt-orange transition-colors"
-            >
-              ← Back to edit answers
-            </button>
-          </>
+        {appStep === 'lead-capture' && (
+          <LeadCaptureForm 
+            onSubmit={handleLeadCapture}
+            companyName={formData.businessContext.companyName}
+          />
         )}
 
-        {appState === 'loading' && (
-          <div className="text-center py-16">
-            <div className="spinner w-16 h-16 mx-auto mb-6" />
-            <h2 className="text-2xl font-heading font-bold text-white mb-3">
-              Analyzing Your Brand Lift Potential
+        {appStep === 'analyzing' && (
+          <div className="flex flex-col items-center justify-center py-20">
+            <div className="spinner mb-6" />
+            <h2 className="text-2xl font-heading font-bold text-white mb-2">
+              Analyzing Your Brand Position
             </h2>
-            <p className="text-abstrakt-text-muted max-w-md mx-auto">
-              Our AI is evaluating your brand maturity, calculating optimal budget allocations, 
-              and generating personalized ad recommendations...
+            <p className="text-abstrakt-text-muted text-center max-w-md">
+              Our AI is evaluating your business context, market position, and generating 
+              personalized recommendations...
             </p>
           </div>
         )}
 
-        {appState === 'results' && analysisResult && (
-          <>
-            {/* Safety check for required data */}
-            {analysisResult.brandGapAnalysis && analysisResult.budgetRecommendation ? (
-              <ResultsDisplay analysis={analysisResult} formData={formData} />
-            ) : (
-              <div className="abstrakt-card p-8 text-center">
-                <h2 className="text-xl font-bold text-white mb-4">Analysis Complete</h2>
-                <p className="text-abstrakt-text-muted mb-4">
-                  Your analysis was generated but some data may be incomplete. 
-                  Please contact us for your full report.
-                </p>
-                <a 
-                  href="https://abstraktmg.com/contact"
-                  className="abstrakt-button inline-block"
-                >
-                  Contact Us
-                </a>
-                <details className="mt-6 text-left">
-                  <summary className="text-abstrakt-text-dim cursor-pointer">Debug Info</summary>
-                  <pre className="mt-2 p-4 bg-abstrakt-input rounded text-xs overflow-auto">
-                    {JSON.stringify(analysisResult, null, 2)}
-                  </pre>
-                </details>
-              </div>
-            )}
-          </>
+        {appStep === 'results' && analysisResult && (
+          <ResultsDisplay 
+            result={analysisResult}
+            formData={formData}
+            onStartOver={handleStartOver}
+          />
         )}
       </div>
-
-      {/* Footer */}
-      <footer className="mt-16 py-8 border-t border-abstrakt-card-border">
-        <div className="max-w-4xl mx-auto px-4 text-center">
-          <p className="text-abstrakt-orange font-heading font-bold tracking-wider mb-2">
-            ABSTRAKT MARKETING GROUP
-          </p>
-          <p className="text-abstrakt-text-dim text-sm">
-            © {new Date().getFullYear()} All rights reserved.
-          </p>
-        </div>
-      </footer>
     </main>
   );
 }

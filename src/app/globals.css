@@ -5,17 +5,17 @@
 @tailwind utilities;
 
 :root {
-  --abstrakt-bg: #0a0a0a;
-  --abstrakt-card: #141414;
-  --abstrakt-card-border: #1e1e1e;
+  --abstrakt-bg: #3d3d3d;
+  --abstrakt-card: #2a2a2a;
+  --abstrakt-card-border: #4a4a4a;
   --abstrakt-orange: #e85d04;
   --abstrakt-orange-dark: #c44d03;
   --abstrakt-orange-light: #ff6b1a;
   --abstrakt-text: #ffffff;
-  --abstrakt-text-muted: #9a9a9a;
-  --abstrakt-text-dim: #666666;
-  --abstrakt-input: #1a1a1a;
-  --abstrakt-input-border: #333333;
+  --abstrakt-text-muted: #b0b0b0;
+  --abstrakt-text-dim: #888888;
+  --abstrakt-input: #353535;
+  --abstrakt-input-border: #555555;
 }
 
 * {
@@ -36,8 +36,8 @@ body {
 body {
   min-height: 100vh;
   background: 
-    radial-gradient(ellipse at 50% 0%, rgba(232, 93, 4, 0.08) 0%, transparent 50%),
-    linear-gradient(180deg, #0a0a0a 0%, #0f0f0f 100%);
+    radial-gradient(ellipse at 50% 0%, rgba(232, 93, 4, 0.12) 0%, transparent 50%),
+    linear-gradient(180deg, #3d3d3d 0%, #333333 100%);
 }
 
 /* Custom scrollbar */
@@ -87,19 +87,19 @@ textarea::placeholder {
   .card-glow {
     box-shadow: 
       0 0 0 1px var(--abstrakt-card-border),
-      0 0 40px rgba(232, 93, 4, 0.1);
+      0 0 40px rgba(232, 93, 4, 0.15);
   }
 
   .card-glow-hover:hover {
     box-shadow: 
       0 0 0 1px var(--abstrakt-orange),
-      0 0 60px rgba(232, 93, 4, 0.2);
+      0 0 60px rgba(232, 93, 4, 0.25);
   }
 
   .input-focus:focus {
     outline: none;
     border-color: var(--abstrakt-orange);
-    box-shadow: 0 0 0 2px rgba(232, 93, 4, 0.2);
+    box-shadow: 0 0 0 2px rgba(232, 93, 4, 0.3);
   }
 
   .section-header {
@@ -123,6 +123,17 @@ textarea::placeholder {
   .animate-stagger > *:nth-child(6) { animation-delay: 500ms; }
 }
 
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* Card component base styles */
 @layer components {
   .abstrakt-card {
@@ -136,7 +147,7 @@ textarea::placeholder {
 
   .abstrakt-input:focus {
     @apply outline-none border-abstrakt-orange;
-    box-shadow: 0 0 0 2px rgba(232, 93, 4, 0.2);
+    box-shadow: 0 0 0 2px rgba(232, 93, 4, 0.3);
   }
 
   .abstrakt-button {
@@ -176,7 +187,7 @@ textarea::placeholder {
 
 .radio-card.selected {
   @apply border-abstrakt-orange bg-abstrakt-card;
-  box-shadow: 0 0 0 2px rgba(232, 93, 4, 0.2);
+  box-shadow: 0 0 0 2px rgba(232, 93, 4, 0.3);
 }
 
 .radio-card input[type="radio"] {
@@ -229,4 +240,17 @@ input[type="range"]::-moz-range-thumb {
 
 .metric-label {
   @apply text-sm text-abstrakt-text-muted uppercase tracking-wider mt-1;
+}
+
+/* Image generator sections */
+.image-gen-card {
+  @apply bg-abstrakt-card p-4 rounded-lg border border-abstrakt-card-border;
+}
+
+.image-gen-card.text-focused {
+  border-left: 3px solid #4ade80;
+}
+
+.image-gen-card.default {
+  border-left: 3px solid var(--abstrakt-orange);
 }
