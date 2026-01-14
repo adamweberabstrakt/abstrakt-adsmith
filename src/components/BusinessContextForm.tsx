@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { BusinessContextInputs, INDUSTRIES, SALES_CYCLES, GEOGRAPHIC_OPTIONS } from '@/lib/types';
 
 interface BusinessContextFormProps {
@@ -8,6 +9,13 @@ interface BusinessContextFormProps {
 }
 
 export function BusinessContextForm({ data, onChange }: BusinessContextFormProps) {
+  // Helper to update competitor URL at specific index
+  const updateCompetitorUrl = (index: number, value: string) => {
+    const newUrls = [...(data.competitorUrls || ['', '', ''])];
+    newUrls[index] = value;
+    onChange({ competitorUrls: newUrls });
+  };
+
   return (
     <div className="space-y-8 animate-fade-in">
       {/* Intro text */}
@@ -17,7 +25,7 @@ export function BusinessContextForm({ data, onChange }: BusinessContextFormProps
           <div>
             <h3 className="section-header text-lg mb-2">Why This Matters</h3>
             <p className="text-abstrakt-text-muted leading-relaxed">
-              AI Search engines like ChatGPT, Perplexity, and Google's AI Overviews are changing how buyers find solutions. 
+              AI Search engines like ChatGPT, Perplexity, and Google&apos;s AI Overviews are changing how buyers find solutions. 
               Your business context helps us understand how paid media can build the <span className="text-abstrakt-orange font-medium">brand signals</span> these platforms reward.
             </p>
           </div>
@@ -39,6 +47,21 @@ export function BusinessContextForm({ data, onChange }: BusinessContextFormProps
               value={data.companyName}
               onChange={(e) => onChange({ companyName: e.target.value })}
               placeholder="e.g., Acme Industries"
+              className="abstrakt-input"
+              required
+            />
+          </div>
+
+          {/* Website URL - NEW */}
+          <div>
+            <label className="block text-sm text-abstrakt-text-muted mb-2">
+              Website URL <span className="text-abstrakt-orange">*</span>
+            </label>
+            <input
+              type="url"
+              value={data.websiteUrl || ''}
+              onChange={(e) => onChange({ websiteUrl: e.target.value })}
+              placeholder="e.g., https://acmeindustries.com"
               className="abstrakt-input"
               required
             />
@@ -77,7 +100,7 @@ export function BusinessContextForm({ data, onChange }: BusinessContextFormProps
                 className="abstrakt-input pl-8"
               />
             </div>
-            <p className="text-xs text-abstrakt-text-dim mt-1">Leave blank if you're unsure—we can estimate</p>
+            <p className="text-xs text-abstrakt-text-dim mt-1">Leave blank if you&apos;re unsure—we can estimate</p>
           </div>
 
           {/* Sales Cycle */}
@@ -135,6 +158,55 @@ export function BusinessContextForm({ data, onChange }: BusinessContextFormProps
               </label>
             ))}
           </div>
+        </div>
+      </div>
+
+      {/* Competitor Analysis Section - NEW */}
+      <div className="abstrakt-card p-6">
+        <h3 className="section-header text-base mb-2">Competitor Analysis</h3>
+        <p className="text-sm text-abstrakt-text-muted mb-6">
+          Optional: Add up to 3 competitor websites for our SEMRush-powered competitive analysis
+        </p>
+        
+        <div className="space-y-4">
+          {[0, 1, 2].map((index) => (
+            <div key={index}>
+              <label className="block text-sm text-abstrakt-text-muted mb-2">
+                Competitor {index + 1} {index === 0 && <span className="text-abstrakt-text-dim">(primary)</span>}
+              </label>
+              <input
+                type="url"
+                value={(data.competitorUrls || ['', '', ''])[index] || ''}
+                onChange={(e) => updateCompetitorUrl(index, e.target.value)}
+                placeholder={`e.g., https://competitor${index + 1}.com`}
+                className="abstrakt-input"
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Custom Ad Angle Section - NEW */}
+      <div className="abstrakt-card p-6">
+        <h3 className="section-header text-base mb-2">Your Unique Value</h3>
+        <p className="text-sm text-abstrakt-text-muted mb-4">
+          Optional: Tell us what makes your business different. This helps us craft more targeted ad messaging.
+        </p>
+        
+        <div>
+          <label className="block text-sm text-abstrakt-text-muted mb-2">
+            What makes your business different?
+          </label>
+          <textarea
+            value={data.customAdAngle || ''}
+            onChange={(e) => onChange({ customAdAngle: e.target.value })}
+            placeholder="e.g., We're the only company that offers 24/7 support with a dedicated account manager, and we've been in business for 30+ years..."
+            className="abstrakt-input min-h-[100px] resize-y"
+            rows={3}
+          />
+          <p className="text-xs text-abstrakt-text-dim mt-1">
+            Think about: unique services, years of experience, certifications, awards, guarantees, etc.
+          </p>
         </div>
       </div>
     </div>
