@@ -1,20 +1,14 @@
-@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
+  --abstrakt-orange: #e85d04;
+  --abstrakt-orange-light: #f48c06;
   --abstrakt-bg: #3d3d3d;
   --abstrakt-card: #2a2a2a;
   --abstrakt-card-border: #4a4a4a;
-  --abstrakt-orange: #e85d04;
-  --abstrakt-orange-dark: #c44d03;
-  --abstrakt-orange-light: #ff6b1a;
-  --abstrakt-text: #ffffff;
-  --abstrakt-text-muted: #b0b0b0;
-  --abstrakt-text-dim: #888888;
-  --abstrakt-input: #353535;
+  --abstrakt-input: #333333;
   --abstrakt-input-border: #555555;
 }
 
@@ -28,22 +22,27 @@ html,
 body {
   max-width: 100vw;
   overflow-x: hidden;
-  background: var(--abstrakt-bg);
-  color: var(--abstrakt-text);
-  font-family: 'Inter', system-ui, sans-serif;
+  background-color: var(--abstrakt-bg);
+  color: #ffffff;
 }
 
 body {
-  min-height: 100vh;
-  background: 
-    radial-gradient(ellipse at 50% 0%, rgba(232, 93, 4, 0.12) 0%, transparent 50%),
-    linear-gradient(180deg, #3d3d3d 0%, #333333 100%);
+  font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Oswald for headings */
+.font-heading {
+  font-family: 'Oswald', sans-serif;
 }
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
-  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
@@ -51,7 +50,7 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--abstrakt-input-border);
+  background: var(--abstrakt-card-border);
   border-radius: 4px;
 }
 
@@ -59,68 +58,16 @@ body {
   background: var(--abstrakt-orange);
 }
 
-/* Form inputs styling */
-input, select, textarea {
-  font-family: 'Inter', system-ui, sans-serif;
-}
-
-input::placeholder,
-textarea::placeholder {
-  color: var(--abstrakt-text-dim);
-}
-
-/* Selection styling */
-::selection {
-  background: var(--abstrakt-orange);
-  color: white;
-}
-
-/* Custom utilities */
-@layer utilities {
-  .text-gradient {
-    background: linear-gradient(135deg, var(--abstrakt-orange) 0%, var(--abstrakt-orange-light) 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-
-  .card-glow {
-    box-shadow: 
-      0 0 0 1px var(--abstrakt-card-border),
-      0 0 40px rgba(232, 93, 4, 0.15);
-  }
-
-  .card-glow-hover:hover {
-    box-shadow: 
-      0 0 0 1px var(--abstrakt-orange),
-      0 0 60px rgba(232, 93, 4, 0.25);
-  }
-
-  .input-focus:focus {
-    outline: none;
-    border-color: var(--abstrakt-orange);
-    box-shadow: 0 0 0 2px rgba(232, 93, 4, 0.3);
-  }
-
-  .section-header {
-    font-family: 'Oswald', Impact, sans-serif;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--abstrakt-orange);
-  }
-
-  .animate-stagger > * {
-    animation: slideUp 0.5s ease-out forwards;
+/* Animations */
+@keyframes fadeIn {
+  from {
     opacity: 0;
+    transform: translateY(10px);
   }
-
-  .animate-stagger > *:nth-child(1) { animation-delay: 0ms; }
-  .animate-stagger > *:nth-child(2) { animation-delay: 100ms; }
-  .animate-stagger > *:nth-child(3) { animation-delay: 200ms; }
-  .animate-stagger > *:nth-child(4) { animation-delay: 300ms; }
-  .animate-stagger > *:nth-child(5) { animation-delay: 400ms; }
-  .animate-stagger > *:nth-child(6) { animation-delay: 500ms; }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes slideUp {
@@ -134,123 +81,128 @@ textarea::placeholder {
   }
 }
 
-/* Card component base styles */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s ease-out;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.5s ease-out;
+}
+
+/* Spinner */
+.spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid var(--abstrakt-card-border);
+  border-top-color: var(--abstrakt-orange);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+/* Progress bar */
+.progress-bar {
+  height: 4px;
+  background: var(--abstrakt-card);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--abstrakt-orange), var(--abstrakt-orange-light));
+  border-radius: 2px;
+}
+
+/* Section headers */
+.section-header {
+  font-family: 'Oswald', sans-serif;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #ffffff;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Component styles */
 @layer components {
   .abstrakt-card {
-    @apply bg-abstrakt-card rounded-lg border border-abstrakt-card-border;
-    border-top: 3px solid var(--abstrakt-orange);
+    @apply bg-abstrakt-card border border-abstrakt-card-border rounded-xl;
   }
 
   .abstrakt-input {
-    @apply w-full bg-abstrakt-input border border-abstrakt-input-border rounded-lg px-4 py-3 text-abstrakt-text transition-all duration-200;
+    @apply w-full bg-abstrakt-input border border-abstrakt-input-border rounded-lg px-4 py-3 text-white transition-all duration-200;
   }
 
   .abstrakt-input:focus {
-    @apply outline-none border-abstrakt-orange;
-    box-shadow: 0 0 0 2px rgba(232, 93, 4, 0.3);
+    @apply outline-none border-abstrakt-orange ring-2 ring-abstrakt-orange/20;
+  }
+
+  .abstrakt-input::placeholder {
+    @apply text-abstrakt-text-dim;
   }
 
   .abstrakt-button {
-    @apply bg-abstrakt-orange hover:bg-abstrakt-orange-dark text-white font-semibold px-6 py-3 rounded-lg transition-all duration-200;
+    @apply bg-abstrakt-orange hover:bg-abstrakt-orange-light text-white font-semibold px-6 py-3 rounded-lg transition-all duration-200;
   }
 
   .abstrakt-button:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 20px rgba(232, 93, 4, 0.4);
-  }
-
-  .abstrakt-button:active {
-    transform: translateY(0);
+    @apply transform scale-[1.02] shadow-lg shadow-abstrakt-orange/25;
   }
 
   .abstrakt-button-outline {
-    @apply border-2 border-abstrakt-orange text-abstrakt-orange bg-transparent hover:bg-abstrakt-orange hover:text-white font-semibold px-6 py-3 rounded-lg transition-all duration-200;
+    @apply border-2 border-abstrakt-orange text-abstrakt-orange hover:bg-abstrakt-orange hover:text-white font-semibold px-6 py-3 rounded-lg transition-all duration-200;
   }
 
-  .progress-bar {
-    @apply h-2 bg-abstrakt-input rounded-full overflow-hidden;
+  /* Image generation cards */
+  .image-gen-card {
+    @apply bg-abstrakt-card border border-abstrakt-card-border rounded-xl;
   }
 
-  .progress-bar-fill {
-    @apply h-full bg-abstrakt-orange transition-all duration-500 ease-out rounded-full;
+  .image-gen-card.text-focused {
+    @apply border-green-600/50;
+  }
+
+  .image-gen-card.default {
+    @apply border-abstrakt-orange/50;
   }
 }
 
-/* Radio button custom styling */
-.radio-card {
-  @apply relative flex items-center p-4 bg-abstrakt-input border border-abstrakt-input-border rounded-lg cursor-pointer transition-all duration-200;
+/* Form select styling */
+select.abstrakt-input {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23808080' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 0.75rem center;
+  background-repeat: no-repeat;
+  background-size: 1.5em 1.5em;
+  padding-right: 2.5rem;
 }
 
-.radio-card:hover {
-  @apply border-abstrakt-orange;
+select.abstrakt-input option {
+  background-color: var(--abstrakt-input);
+  color: #ffffff;
 }
 
-.radio-card.selected {
-  @apply border-abstrakt-orange bg-abstrakt-card;
-  box-shadow: 0 0 0 2px rgba(232, 93, 4, 0.3);
+/* Checkbox custom styling */
+input[type="checkbox"] {
+  accent-color: var(--abstrakt-orange);
 }
 
-.radio-card input[type="radio"] {
-  @apply sr-only;
+/* Focus visible for accessibility */
+*:focus-visible {
+  outline: 2px solid var(--abstrakt-orange);
+  outline-offset: 2px;
 }
 
-/* Slider/Range input styling */
-input[type="range"] {
-  @apply w-full h-2 bg-abstrakt-input rounded-lg appearance-none cursor-pointer;
-}
-
-input[type="range"]::-webkit-slider-thumb {
-  @apply appearance-none w-5 h-5 bg-abstrakt-orange rounded-full cursor-pointer;
-  box-shadow: 0 0 10px rgba(232, 93, 4, 0.5);
-}
-
-input[type="range"]::-moz-range-thumb {
-  @apply w-5 h-5 bg-abstrakt-orange rounded-full cursor-pointer border-0;
-}
-
-/* Tooltip */
-.tooltip {
-  @apply relative;
-}
-
-.tooltip::after {
-  content: attr(data-tooltip);
-  @apply absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1 text-sm bg-abstrakt-card text-abstrakt-text rounded-lg whitespace-nowrap opacity-0 pointer-events-none transition-opacity duration-200;
-  border: 1px solid var(--abstrakt-card-border);
-}
-
-.tooltip:hover::after {
-  @apply opacity-100;
-}
-
-/* Loading spinner */
-.spinner {
-  @apply w-8 h-8 border-4 border-abstrakt-input border-t-abstrakt-orange rounded-full animate-spin;
-}
-
-/* Metric cards */
-.metric-card {
-  @apply bg-abstrakt-card p-6 rounded-lg border border-abstrakt-card-border;
-}
-
-.metric-value {
-  @apply text-4xl font-bold text-abstrakt-orange;
-  font-family: 'Oswald', Impact, sans-serif;
-}
-
-.metric-label {
-  @apply text-sm text-abstrakt-text-muted uppercase tracking-wider mt-1;
-}
-
-/* Image generator sections */
-.image-gen-card {
-  @apply bg-abstrakt-card p-4 rounded-lg border border-abstrakt-card-border;
-}
-
-.image-gen-card.text-focused {
-  border-left: 3px solid #4ade80;
-}
-
-.image-gen-card.default {
-  border-left: 3px solid var(--abstrakt-orange);
+/* Line clamp utility */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
