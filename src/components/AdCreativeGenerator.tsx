@@ -8,22 +8,43 @@ interface AdCreativeGeneratorProps {
   formData: FormData;
 }
 
-type ImageModel = 'imagen' | 'dalle' | 'flux';
+type ImageModel = 'flux-pro' | 'flux-schnell';
+
+interface GeneratedImage {
+  url: string;
+  prompt: string;
+  source: 'ideogram' | 'replicate';
+  timestamp: number;
+}
 
 export function AdCreativeGenerator({ result, formData }: AdCreativeGeneratorProps) {
   const [selectedAngleIndex, setSelectedAngleIndex] = useState(0);
-  const [selectedModel, setSelectedModel] = useState<ImageModel>('imagen');
-  const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+  const [selectedModel, setSelectedModel] = useState<ImageModel>('flux-schnell');
+  const [customPrompt, setCustomPrompt] = useState('');
+  const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isGeneratingIdeogram, setIsGeneratingIdeogram] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const modelConfig: Record<ImageModel, { name: string; description: string }> = {
-    imagen: { name: 'Google Imagen 3', description: 'Best for photorealistic imagery' },
-    dalle: { name: 'DALL-E 3', description: 'Great for creative concepts' },
-    flux: { name: 'Flux Schnell', description: 'Fast generation, artistic style' },
+    'flux-pro': { name: 'Flux Pro', description: 'Higher quality, detailed imagery' },
+    'flux-schnell': { name: 'Flux Schnell', description: 'Fast generation, great results' },
   };
 
   const selectedAngle = result.messagingRecommendation.adAngles[selectedAngleIndex];
+
+  const buildDefaultPrompt = () => {
+    return `Professional B2B advertisement image for ${formData.businessContext.companyName}, a ${formData.businessContext.industry} company. Theme: ${selectedAngle.headline}. Style: Clean, modern, corporate. No text overlay needed. High quality, professional photography style.`;
+  };
+
+  const buildIdeogramPrompt = () => {
+    const base = customPrompt || `Professional advertisement with text "${selectedAngle.headline}" for ${formData.businessContext.companyName}. Clean modern design, orange accent color, corporate style.`;
+    return base;
+  };
+
+  const getActivePrompt = () => {
+    return customPrompt || buildDefaultPrompt();
+  };
 
   const handleGenerateImage = async () => {
     setIsGenerating(true);
@@ -34,10 +55,8 @@ export function AdCreativeGenerator({ result, formData }: AdCreativeGeneratorPro
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          prompt: buildImagePrompt(),
+          prompt: getActivePrompt(),
           model: selectedModel,
-          companyName: formData.businessContext.companyName,
-          industry: formData.businessContext.industry,
         }),
       });
 
@@ -46,7 +65,13 @@ export function AdCreativeGenerator({ result, formData }: AdCreativeGeneratorPro
       }
 
       const data = await response.json();
-      setGeneratedImage(data.imageUrl);
+      
+      setGeneratedImages(prev => [{
+        url: data.imageUrl,
+        prompt: getActivePrompt(),
+        source: 'replicate',
+        timestamp: Date.now(),
+      }, ...prev]);
     } catch (err) {
       setError('Failed to generate image. Please try again.');
       console.error('Image generation error:', err);
@@ -55,15 +80,54 @@ export function AdCreativeGenerator({ result, formData }: AdCreativeGeneratorPro
     }
   };
 
-  const buildImagePrompt = () => {
-    return `Professional B2B advertisement image for ${formData.businessContext.companyName}, a ${formData.businessContext.industry} company. Theme: ${selectedAngle.headline}. Style: Clean, modern, corporate. No text overlay needed. High quality, professional photography style.`;
+  const handleGenerateIdeogram = async () => {
+    setIsGeneratingIdeogram(true);
+    setError(null);
+
+    try {
+      const response = await fetch('/api/generate-ideogram', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: buildIdeogramPrompt(),
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Ideogram generation failed');
+      }
+
+      const data = await response.json();
+      
+      setGeneratedImages(prev => [{
+        url: data.imageUrl,
+        prompt: buildIdeogramPrompt(),
+        source: 'ideogram',
+        timestamp: Date.now(),
+      }, ...prev]);
+    } catch (err) {
+      setError('Failed to generate Ideogram image. Please try again.');
+      console.error('Ideogram generation error:', err);
+    } finally {
+      setIsGeneratingIdeogram(false);
+    }
   };
 
-  const handleOpenIdeogram = () => {
-    const prompt = encodeURIComponent(
-      `Professional advertisement with text "${selectedAngle.headline}" for ${formData.businessContext.companyName}. Clean modern design, orange accent color, corporate style.`
-    );
-    window.open(`https://ideogram.ai/g/${prompt}`, '_blank', 'noopener,noreferrer');
+  const handleDownload = async (image: GeneratedImage) => {
+    try {
+      const response = await fetch(image.url);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${formData.businessContext.companyName.replace(/\s+/g, '-')}-ad-${image.source}-${Date.now()}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Download failed:', err);
+    }
   };
 
   const handleOpenPomelli = () => {
@@ -97,29 +161,63 @@ export function AdCreativeGenerator({ result, formData }: AdCreativeGeneratorPro
         </div>
       </div>
 
+      {/* Custom Prompt Input */}
+      <div className="abstrakt-card p-6">
+        <h3 className="section-header mb-4">Custom Prompt (Optional)</h3>
+        <p className="text-sm text-abstrakt-text-muted mb-3">
+          Override the auto-generated prompt with your own. Leave empty to use the default prompt based on your selected ad angle.
+        </p>
+        <textarea
+          value={customPrompt}
+          onChange={(e) => setCustomPrompt(e.target.value)}
+          placeholder={buildDefaultPrompt()}
+          className="w-full h-24 px-4 py-3 bg-abstrakt-input border border-abstrakt-input-border rounded-lg text-white placeholder-abstrakt-text-dim focus:border-abstrakt-orange focus:outline-none resize-none"
+        />
+        {customPrompt && (
+          <button
+            onClick={() => setCustomPrompt('')}
+            className="mt-2 text-sm text-abstrakt-text-muted hover:text-white"
+          >
+            Clear custom prompt
+          </button>
+        )}
+      </div>
+
       {/* Two Column Layout: Ideogram (left) | Model Selector (right) */}
       <div className="grid md:grid-cols-2 gap-6">
         {/* LEFT: Ideogram - Text-Driven Designs */}
         <div className="image-gen-card text-focused p-6">
           <div className="flex items-center gap-2 mb-2">
             <span className="text-green-400 text-lg">✍️</span>
-            <h4 className="font-semibold text-white">Text-Driven Designs</h4>
+            <h4 className="font-semibold text-white">Text-Driven Designs (Ideogram)</h4>
           </div>
           <p className="text-sm text-abstrakt-text-muted mb-4">
-            Use Ideogram for ads that include text overlays, headlines, or typography-heavy designs.
+            Best for ads that include text overlays, headlines, or typography-heavy designs.
           </p>
+
           <div className="bg-abstrakt-input rounded-lg p-4 mb-4">
             <p className="text-xs text-abstrakt-text-dim mb-2">Preview headline:</p>
             <p className="text-white font-semibold">&ldquo;{selectedAngle.headline}&rdquo;</p>
           </div>
+
           <button
-            onClick={handleOpenIdeogram}
-            className="w-full py-3 px-4 rounded-lg bg-green-600 hover:bg-green-700 text-white font-semibold transition-all flex items-center justify-center gap-2"
+            onClick={handleGenerateIdeogram}
+            disabled={isGeneratingIdeogram}
+            className="w-full py-3 px-4 rounded-lg bg-green-600 hover:bg-green-700 disabled:bg-green-800 disabled:cursor-not-allowed text-white font-semibold transition-all flex items-center justify-center gap-2"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-            </svg>
-            Open Ideogram
+            {isGeneratingIdeogram ? (
+              <>
+                <span className="spinner w-5 h-5" />
+                Generating...
+              </>
+            ) : (
+              <>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                Generate with Ideogram
+              </>
+            )}
           </button>
         </div>
 
@@ -127,10 +225,10 @@ export function AdCreativeGenerator({ result, formData }: AdCreativeGeneratorPro
         <div className="image-gen-card default p-6">
           <div className="flex items-center gap-2 mb-2">
             <span className="text-abstrakt-orange text-lg">🖼️</span>
-            <h4 className="font-semibold text-white">AI Image Generation</h4>
+            <h4 className="font-semibold text-white">AI Image Generation (Flux)</h4>
           </div>
           <p className="text-sm text-abstrakt-text-muted mb-4">
-            Generate imagery without text overlays using our AI models.
+            Generate imagery without text overlays using Flux models.
           </p>
 
           {/* Model Selector */}
@@ -154,7 +252,9 @@ export function AdCreativeGenerator({ result, formData }: AdCreativeGeneratorPro
                 />
                 <div
                   className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                    selectedModel === model ? 'border-abstrakt-orange bg-abstrakt-orange' : 'border-abstrakt-input-border'
+                    selectedModel === model
+                      ? 'border-abstrakt-orange bg-abstrakt-orange'
+                      : 'border-abstrakt-input-border'
                   }`}
                 >
                   {selectedModel === model && (
@@ -195,47 +295,67 @@ export function AdCreativeGenerator({ result, formData }: AdCreativeGeneratorPro
         </div>
       </div>
 
-      {/* Generated Image Display */}
-      {(generatedImage || error) && (
-        <div className="abstrakt-card p-6">
-          <h3 className="section-header mb-4">Generated Creative</h3>
-          {error ? (
-            <div className="bg-red-900/20 border border-red-500/50 rounded-lg p-4 text-red-400">
-              {error}
-            </div>
-          ) : generatedImage ? (
-            <div className="space-y-4">
-              <div className="relative rounded-lg overflow-hidden bg-abstrakt-input">
-                <img
-                  src={generatedImage}
-                  alt="Generated ad creative"
-                  className="w-full h-auto"
-                />
-              </div>
-              <div className="flex gap-3">
-                <a
-                  href={generatedImage}
-                  download={`${formData.businessContext.companyName}-ad-creative.png`}
-                  className="abstrakt-button-outline flex items-center gap-2"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                  </svg>
-                  Download
-                </a>
-                <button
-                  onClick={handleGenerateImage}
-                  className="text-abstrakt-text-muted hover:text-white transition-colors"
-                >
-                  Regenerate
-                </button>
-              </div>
-            </div>
-          ) : null}
+      {/* Error Display */}
+      {error && (
+        <div className="bg-red-900/20 border border-red-500/50 rounded-lg p-4 text-red-400">
+          {error}
         </div>
       )}
 
-      {/* Pomelli CTA - Prominent Button Style */}
+      {/* Generated Images Gallery */}
+      {generatedImages.length > 0 && (
+        <div className="abstrakt-card p-6">
+          <h3 className="section-header mb-4">Generated Creatives ({generatedImages.length})</h3>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {generatedImages.map((image, idx) => (
+              <div key={image.timestamp} className="relative group">
+                <div className="relative rounded-lg overflow-hidden bg-abstrakt-input aspect-square">
+                  <img
+                    src={image.url}
+                    alt={`Generated ad creative ${idx + 1}`}
+                    className="w-full h-full object-cover"
+                  />
+                  {/* Overlay with actions */}
+                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+                    <button
+                      onClick={() => handleDownload(image)}
+                      className="p-3 bg-abstrakt-orange rounded-full hover:bg-abstrakt-orange-dark transition-colors"
+                      title="Download"
+                    >
+                      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                    </button>
+                    <a
+                      href={image.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-3 bg-white/20 rounded-full hover:bg-white/30 transition-colors"
+                      title="View full size"
+                    >
+                      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                      </svg>
+                    </a>
+                  </div>
+                </div>
+                {/* Source badge */}
+                <div className="absolute top-2 left-2">
+                  <span className={`px-2 py-1 rounded text-xs font-medium ${
+                    image.source === 'ideogram' 
+                      ? 'bg-green-600 text-white' 
+                      : 'bg-abstrakt-orange text-white'
+                  }`}>
+                    {image.source === 'ideogram' ? 'Ideogram' : 'Flux'}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Pomelli CTA */}
       <div className="abstrakt-card p-6 border-2 border-purple-500/50 bg-gradient-to-r from-purple-900/20 to-transparent">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-4">
