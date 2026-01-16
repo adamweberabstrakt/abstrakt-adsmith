@@ -1,59 +1,53 @@
 import { NextRequest, NextResponse } from 'next/server';
-import Replicate from 'replicate';
-
-const replicate = new Replicate({
-  auth: process.env.REPLICATE_API_TOKEN,
-});
-
-type ImageModel = 'imagen' | 'dalle' | 'flux';
-
-const MODEL_IDS = {
-  imagen: 'google-deepmind/imagen-3' as const,
-  dalle: 'black-forest-labs/flux-1.1-pro' as const,
-  flux: 'black-forest-labs/flux-schnell' as const,
-};
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { prompt, model = 'imagen' } = body as { 
-      prompt: string; 
-      model: ImageModel;
-    };
+    const { prompt } = body as { prompt: string };
 
-    if (!process.env.REPLICATE_API_TOKEN) {
+    if (!process.env.IDEOGRAM_API_KEY) {
       return NextResponse.json(
-        { error: 'Image generation not configured' },
+        { error: 'Ideogram API not configured' },
         { status: 500 }
       );
     }
 
-    const modelId = MODEL_IDS[model] || MODEL_IDS.imagen;
-
-    const output = await replicate.run(modelId, {
-      input: {
-        prompt,
-        aspect_ratio: '1:1',
-        output_format: 'webp',
-        output_quality: 90,
+    const response = await fetch('https://api.ideogram.ai/generate', {
+      method: 'POST',
+      headers: {
+        'Api-Key': process.env.IDEOGRAM_API_KEY,
+        'Content-Type': 'application/json',
       },
+      body: JSON.stringify({
+        image_request: {
+          prompt,
+          aspect_ratio: 'ASPECT_1_1',
+          model: 'V_2',
+          magic_prompt_option: 'AUTO',
+        },
+      }),
     });
 
-    // Handle different output formats from Replicate
-    let imageUrl: string;
-    if (Array.isArray(output)) {
-      imageUrl = output[0];
-    } else if (typeof output === 'string') {
-      imageUrl = output;
-    } else {
-      throw new Error('Unexpected output format');
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Ideogram API error:', errorText);
+      throw new Error('Ideogram API request failed');
+    }
+
+    const data = await response.json();
+    
+    // Ideogram returns an array of images in data.data
+    const imageUrl = data.data?.[0]?.url;
+    
+    if (!imageUrl) {
+      throw new Error('No image URL in response');
     }
 
     return NextResponse.json({ imageUrl });
   } catch (error) {
-    console.error('Image generation error:', error);
+    console.error('Ideogram generation error:', error);
     return NextResponse.json(
-      { error: 'Image generation failed' },
+      { error: 'Ideogram generation failed' },
       { status: 500 }
     );
   }
