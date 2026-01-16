@@ -131,7 +131,7 @@ export function AdCreativeGenerator({ result, formData }: AdCreativeGeneratorPro
   };
 
   const handleOpenPomelli = () => {
-    window.open('https://pomelli.ai', '_blank', 'noopener,noreferrer');
+    window.open('https://labs.google.com/pomelli/', '_blank', 'noopener,noreferrer');
   };
 
   return (
@@ -365,9 +365,9 @@ export function AdCreativeGenerator({ result, formData }: AdCreativeGeneratorPro
               </svg>
             </div>
             <div>
-              <h4 className="text-lg font-heading font-bold text-white">Try Pomelli AI</h4>
+              <h4 className="text-lg font-heading font-bold text-white">Try Pomelli by Google Labs</h4>
               <p className="text-sm text-abstrakt-text-muted">
-                Advanced AI image editing and ad creative generation
+                AI-powered ad creative generation (requires Google sign-in)
               </p>
             </div>
           </div>
@@ -378,7 +378,7 @@ export function AdCreativeGenerator({ result, formData }: AdCreativeGeneratorPro
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
             </svg>
-            Open Pomelli AI
+            Open Pomelli
           </button>
         </div>
       </div>
