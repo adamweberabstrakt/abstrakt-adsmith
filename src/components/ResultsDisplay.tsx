@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { AnalysisResult, FormData } from '@/lib/types';
 import { AdCreativeGenerator } from './AdCreativeGenerator';
 
@@ -16,6 +16,7 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
   const [activeTab, setActiveTab] = useState<'overview' | 'messaging' | 'creative'>('overview');
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const pdfContentRef = useRef<HTMLDivElement>(null);
 
   const tierColors: Record<string, string> = {
     emerging: 'text-yellow-400',
@@ -31,18 +32,28 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
     dominant: 'Dominant Brand',
   };
 
-  // Load html2pdf script
+  // Load required scripts for PDF generation
   useEffect(() => {
-    if (typeof window !== 'undefined' && !document.getElementById('html2pdf-script')) {
-      const script = document.createElement('script');
-      script.id = 'html2pdf-script';
-      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
-      script.async = true;
-      document.body.appendChild(script);
-    }
+    const loadScript = (src: string, id: string) => {
+      return new Promise<void>((resolve) => {
+        if (document.getElementById(id)) {
+          resolve();
+          return;
+        }
+        const script = document.createElement('script');
+        script.id = id;
+        script.src = src;
+        script.async = true;
+        script.onload = () => resolve();
+        document.body.appendChild(script);
+      });
+    };
+
+    // Load html2canvas and jsPDF
+    loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js', 'html2canvas-script');
+    loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', 'jspdf-script');
   }, []);
 
-  // Get first competitor URL for ads transparency link
   const primaryCompetitor = formData.businessContext.competitorUrls?.find(url => url.trim() !== '');
 
   const handleCheckCompetitorAds = () => {
@@ -63,21 +74,11 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
     setIsGeneratingPdf(true);
     
     try {
-      // Create HTML content for PDF
-      const pdfContent = generatePdfHtml();
-      
-      // Create a temporary container
-      const container = document.createElement('div');
-      container.innerHTML = pdfContent;
-      container.style.position = 'absolute';
-      container.style.left = '-9999px';
-      document.body.appendChild(container);
-
-      // Wait for html2pdf to be loaded
-      const waitForHtml2Pdf = () => {
+      // Wait for libraries to load
+      const waitForLibs = () => {
         return new Promise<void>((resolve) => {
           const check = () => {
-            if ((window as any).html2pdf) {
+            if ((window as any).html2canvas && (window as any).jspdf) {
               resolve();
             } else {
               setTimeout(check, 100);
@@ -87,22 +88,74 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
         });
       };
 
-      await waitForHtml2Pdf();
+      await waitForLibs();
 
-      const opt = {
-        margin: 10,
-        filename: `${formData.businessContext.companyName.replace(/\s+/g, '-')}-AdSmith-Analysis.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2 },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-      };
+      const html2canvas = (window as any).html2canvas;
+      const { jsPDF } = (window as any).jspdf;
 
-      await (window as any).html2pdf().set(opt).from(container).save();
-      
+      // Create a temporary container with the PDF content
+      const container = document.createElement('div');
+      container.innerHTML = generatePdfHtml();
+      container.style.position = 'absolute';
+      container.style.left = '-9999px';
+      container.style.top = '0';
+      container.style.width = '800px';
+      container.style.backgroundColor = '#ffffff';
+      document.body.appendChild(container);
+
+      // Wait a moment for content to render
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Capture the content as an image
+      const canvas = await html2canvas(container, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+      });
+
+      // Create PDF
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4',
+      });
+
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      const imgWidth = canvas.width;
+      const imgHeight = canvas.height;
+      const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
+      const imgX = (pdfWidth - imgWidth * ratio) / 2;
+      const imgY = 0;
+
+      // Calculate if we need multiple pages
+      const scaledHeight = (imgHeight * pdfWidth) / imgWidth;
+      const pageHeight = pdfHeight;
+      let heightLeft = scaledHeight;
+      let position = 0;
+
+      // Add first page
+      pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, scaledHeight);
+      heightLeft -= pageHeight;
+
+      // Add additional pages if needed
+      while (heightLeft > 0) {
+        position = heightLeft - scaledHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, scaledHeight);
+        heightLeft -= pageHeight;
+      }
+
+      // Save the PDF
+      pdf.save(`${formData.businessContext.companyName.replace(/\s+/g, '-')}-AdSmith-Analysis.pdf`);
+
       // Clean up
       document.body.removeChild(container);
     } catch (error) {
       console.error('PDF generation error:', error);
+      alert('Failed to generate PDF. Please try again.');
     } finally {
       setIsGeneratingPdf(false);
     }
@@ -110,63 +163,66 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
 
   const generatePdfHtml = (): string => {
     return `
-      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto; padding: 20px;">
-        <div style="text-align: center; margin-bottom: 30px; padding-bottom: 15px; border-bottom: 3px solid #e85d04;">
-          <h1 style="color: #e85d04; font-size: 24px; margin-bottom: 5px;">AdSmith Analysis</h1>
-          <p style="color: #666; margin: 0;">Brand Lift Strategy for ${formData.businessContext.companyName}</p>
+      <div style="font-family: Arial, Helvetica, sans-serif; line-height: 1.5; color: #333; padding: 40px; background: #ffffff;">
+        <div style="text-align: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 4px solid #e85d04;">
+          <h1 style="color: #e85d04; font-size: 28px; margin: 0 0 8px 0; font-weight: bold;">AdSmith Analysis</h1>
+          <p style="color: #666; margin: 0; font-size: 16px;">Brand Lift Strategy for ${formData.businessContext.companyName}</p>
         </div>
 
-        <div style="margin-bottom: 25px;">
-          <h2 style="color: #e85d04; font-size: 16px; margin-bottom: 10px; padding-bottom: 5px; border-bottom: 1px solid #ddd;">Brand Maturity Assessment</h2>
-          <div style="display: inline-block; background: #e85d04; color: white; padding: 5px 15px; border-radius: 20px; font-weight: bold; margin-bottom: 10px;">
+        <div style="margin-bottom: 30px;">
+          <h2 style="color: #e85d04; font-size: 18px; margin: 0 0 15px 0; padding-bottom: 8px; border-bottom: 2px solid #eee;">Brand Maturity Assessment</h2>
+          <div style="display: inline-block; background: #e85d04; color: white; padding: 8px 20px; border-radius: 25px; font-weight: bold; font-size: 14px; margin-bottom: 15px;">
             ${tierLabels[result.brandGapAnalysis.tier]}
           </div>
-          <p style="margin: 10px 0;"><strong>Score:</strong> ${result.brandGapAnalysis.score}/100</p>
-          <p style="margin-top: 10px; color: #555;">${result.brandGapAnalysis.brandDemandGap}</p>
+          <p style="margin: 10px 0; font-size: 16px;"><strong>Score:</strong> ${result.brandGapAnalysis.score}/100</p>
+          <p style="margin: 15px 0; color: #555; font-size: 14px; line-height: 1.6;">${result.brandGapAnalysis.brandDemandGap}</p>
         </div>
 
-        <div style="margin-bottom: 25px;">
-          <h2 style="color: #e85d04; font-size: 16px; margin-bottom: 10px; padding-bottom: 5px; border-bottom: 1px solid #ddd;">Budget Recommendations</h2>
-          <div style="display: flex; gap: 15px; flex-wrap: wrap;">
-            <div style="flex: 1; min-width: 200px; border: 1px solid #ddd; padding: 15px; border-radius: 8px;">
-              <strong>Conservative Start</strong>
-              <div style="font-size: 20px; font-weight: bold; color: #e85d04; margin: 8px 0;">${result.budgetRecommendation.conservative.displayTotal}</div>
-              <p style="font-size: 14px; color: #666; margin: 0;">${result.budgetRecommendation.conservative.summary}</p>
-            </div>
-            <div style="flex: 1; min-width: 200px; border: 2px solid #e85d04; padding: 15px; border-radius: 8px;">
-              <strong>Aggressive Growth</strong>
-              <div style="font-size: 20px; font-weight: bold; color: #e85d04; margin: 8px 0;">${result.budgetRecommendation.aggressive.displayTotal}</div>
-              <p style="font-size: 14px; color: #666; margin: 0;">${result.budgetRecommendation.aggressive.summary}</p>
-            </div>
-          </div>
-          ${result.semrushDisclaimer ? `<p style="font-size: 11px; color: #999; font-style: italic; margin-top: 10px;">⚠️ ${result.semrushDisclaimer}</p>` : ''}
+        <div style="margin-bottom: 30px;">
+          <h2 style="color: #e85d04; font-size: 18px; margin: 0 0 15px 0; padding-bottom: 8px; border-bottom: 2px solid #eee;">Budget Recommendations</h2>
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="width: 48%; vertical-align: top; padding: 15px; border: 1px solid #ddd; border-radius: 8px;">
+                <strong style="font-size: 14px;">Conservative Start</strong>
+                <div style="font-size: 24px; font-weight: bold; color: #e85d04; margin: 10px 0;">${result.budgetRecommendation.conservative.displayTotal}</div>
+                <p style="font-size: 13px; color: #666; margin: 0;">${result.budgetRecommendation.conservative.summary}</p>
+              </td>
+              <td style="width: 4%;"></td>
+              <td style="width: 48%; vertical-align: top; padding: 15px; border: 2px solid #e85d04; border-radius: 8px;">
+                <strong style="font-size: 14px;">Aggressive Growth</strong>
+                <div style="font-size: 24px; font-weight: bold; color: #e85d04; margin: 10px 0;">${result.budgetRecommendation.aggressive.displayTotal}</div>
+                <p style="font-size: 13px; color: #666; margin: 0;">${result.budgetRecommendation.aggressive.summary}</p>
+              </td>
+            </tr>
+          </table>
+          ${result.semrushDisclaimer ? `<p style="font-size: 11px; color: #999; font-style: italic; margin-top: 15px;">⚠️ ${result.semrushDisclaimer}</p>` : ''}
         </div>
 
-        <div style="margin-bottom: 25px;">
-          <h2 style="color: #e85d04; font-size: 16px; margin-bottom: 10px; padding-bottom: 5px; border-bottom: 1px solid #ddd;">Recommended Ad Angles</h2>
+        <div style="margin-bottom: 30px;">
+          <h2 style="color: #e85d04; font-size: 18px; margin: 0 0 15px 0; padding-bottom: 8px; border-bottom: 2px solid #eee;">Recommended Ad Angles</h2>
           ${result.messagingRecommendation.adAngles.map(angle => `
-            <div style="background: #f9f9f9; padding: 15px; border-radius: 8px; margin-bottom: 10px;">
-              <div style="color: #e85d04; font-size: 11px; text-transform: uppercase; font-weight: bold; margin-bottom: 5px;">${angle.type.replace('-', ' ')}</div>
-              <h3 style="font-size: 14px; margin: 0 0 8px 0;">${angle.headline}</h3>
-              <p style="margin: 0; font-size: 13px; color: #555;">${angle.subheadline}</p>
-              <p style="margin-top: 8px; font-size: 12px;"><strong>CTA:</strong> ${angle.ctaText}</p>
+            <div style="background: #f8f8f8; padding: 20px; border-radius: 8px; margin-bottom: 15px;">
+              <div style="color: #e85d04; font-size: 11px; text-transform: uppercase; font-weight: bold; letter-spacing: 1px; margin-bottom: 8px;">${angle.type.replace('-', ' ')}</div>
+              <h3 style="font-size: 16px; margin: 0 0 8px 0; color: #333;">${angle.headline}</h3>
+              <p style="margin: 0 0 10px 0; font-size: 14px; color: #555;">${angle.subheadline}</p>
+              <p style="margin: 0; font-size: 13px;"><strong>CTA:</strong> ${angle.ctaText}</p>
             </div>
           `).join('')}
         </div>
 
-        <div style="margin-bottom: 25px;">
-          <h2 style="color: #e85d04; font-size: 16px; margin-bottom: 10px; padding-bottom: 5px; border-bottom: 1px solid #ddd;">Executive Summary</h2>
-          <p style="color: #555; font-size: 13px;">${result.executiveSummary}</p>
+        <div style="margin-bottom: 30px;">
+          <h2 style="color: #e85d04; font-size: 18px; margin: 0 0 15px 0; padding-bottom: 8px; border-bottom: 2px solid #eee;">Executive Summary</h2>
+          <p style="color: #555; font-size: 14px; line-height: 1.7;">${result.executiveSummary}</p>
         </div>
 
-        <div style="margin-bottom: 25px;">
-          <h2 style="color: #e85d04; font-size: 16px; margin-bottom: 10px; padding-bottom: 5px; border-bottom: 1px solid #ddd;">Recommended Next Steps</h2>
-          <ol style="padding-left: 20px; color: #555; font-size: 13px;">
-            ${result.nextSteps.map(step => `<li style="margin-bottom: 8px;">${step}</li>`).join('')}
+        <div style="margin-bottom: 30px;">
+          <h2 style="color: #e85d04; font-size: 18px; margin: 0 0 15px 0; padding-bottom: 8px; border-bottom: 2px solid #eee;">Recommended Next Steps</h2>
+          <ol style="padding-left: 25px; color: #555; font-size: 14px; line-height: 1.8;">
+            ${result.nextSteps.map(step => `<li style="margin-bottom: 10px;">${step}</li>`).join('')}
           </ol>
         </div>
 
-        <div style="margin-top: 30px; padding-top: 15px; border-top: 1px solid #ddd; text-align: center; color: #999; font-size: 11px;">
+        <div style="margin-top: 40px; padding-top: 20px; border-top: 2px solid #eee; text-align: center; color: #999; font-size: 12px;">
           <p style="margin: 0;">Generated by AdSmith | Abstrakt Marketing Group</p>
           <p style="margin: 5px 0 0 0;">For questions, contact us at abstrakt.com</p>
         </div>
@@ -266,7 +322,6 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
               </span>
             </div>
 
-            {/* Score Bar */}
             <div className="mb-6">
               <div className="flex justify-between text-sm mb-2">
                 <span className="text-abstrakt-text-muted">Brand Score</span>
@@ -289,7 +344,6 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
           <div className="abstrakt-card p-6">
             <h3 className="section-header mb-6">Budget Recommendations</h3>
             <div className="grid md:grid-cols-2 gap-6">
-              {/* Conservative */}
               <div className="bg-abstrakt-input rounded-lg p-5 border border-abstrakt-input-border">
                 <div className="flex items-center gap-2 mb-3">
                   <span className="text-green-400">🎯</span>
@@ -306,7 +360,6 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
                 </div>
               </div>
 
-              {/* Aggressive */}
               <div className="bg-abstrakt-input rounded-lg p-5 border-2 border-abstrakt-orange">
                 <div className="flex items-center gap-2 mb-3">
                   <span className="text-abstrakt-orange">🚀</span>
@@ -328,7 +381,6 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
               {result.budgetRecommendation.rationale}
             </p>
 
-            {/* SEMRush Disclaimer */}
             {result.semrushDisclaimer && (
               <p className="text-xs text-abstrakt-text-dim mt-4 italic border-t border-abstrakt-card-border pt-4">
                 ⚠️ {result.semrushDisclaimer}
@@ -484,7 +536,6 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
       {/* Messaging Tab */}
       {activeTab === 'messaging' && (
         <div className="space-y-6">
-          {/* Regenerate Button */}
           <div className="flex justify-end">
             <button
               onClick={handleRegenerate}
@@ -507,7 +558,6 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
             </button>
           </div>
 
-          {/* Tone Guidance */}
           <div className="abstrakt-card p-6">
             <h3 className="section-header mb-4">Brand Voice & Tone</h3>
             <p className="text-abstrakt-text-muted leading-relaxed">
@@ -515,7 +565,6 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
             </p>
           </div>
 
-          {/* Key Differentiators */}
           <div className="abstrakt-card p-6">
             <h3 className="section-header mb-4">Key Differentiators</h3>
             <div className="flex flex-wrap gap-3">
@@ -530,7 +579,6 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
             </div>
           </div>
 
-          {/* Ad Angles */}
           <div className="space-y-4">
             <h3 className="section-header px-2">Recommended Ad Angles</h3>
             {result.messagingRecommendation.adAngles.map((angle, idx) => (
