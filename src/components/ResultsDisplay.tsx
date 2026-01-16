@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AnalysisResult, FormData } from '@/lib/types';
 import { AdCreativeGenerator } from './AdCreativeGenerator';
 
@@ -31,12 +31,22 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
     dominant: 'Dominant Brand',
   };
 
+  // Load html2pdf script
+  useEffect(() => {
+    if (typeof window !== 'undefined' && !document.getElementById('html2pdf-script')) {
+      const script = document.createElement('script');
+      script.id = 'html2pdf-script';
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+      script.async = true;
+      document.body.appendChild(script);
+    }
+  }, []);
+
   // Get first competitor URL for ads transparency link
   const primaryCompetitor = formData.businessContext.competitorUrls?.find(url => url.trim() !== '');
 
   const handleCheckCompetitorAds = () => {
     if (primaryCompetitor) {
-      // Extract domain from URL
       let domain = primaryCompetitor;
       try {
         const url = new URL(primaryCompetitor.startsWith('http') ? primaryCompetitor : `https://${primaryCompetitor}`);
@@ -51,29 +61,117 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
 
   const handleDownloadPdf = async () => {
     setIsGeneratingPdf(true);
+    
     try {
-      const response = await fetch('/api/pdf', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ result, formData }),
-      });
+      // Create HTML content for PDF
+      const pdfContent = generatePdfHtml();
+      
+      // Create a temporary container
+      const container = document.createElement('div');
+      container.innerHTML = pdfContent;
+      container.style.position = 'absolute';
+      container.style.left = '-9999px';
+      document.body.appendChild(container);
 
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${formData.businessContext.companyName.replace(/\s+/g, '-')}-AdSmith-Analysis.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-      }
+      // Wait for html2pdf to be loaded
+      const waitForHtml2Pdf = () => {
+        return new Promise<void>((resolve) => {
+          const check = () => {
+            if ((window as any).html2pdf) {
+              resolve();
+            } else {
+              setTimeout(check, 100);
+            }
+          };
+          check();
+        });
+      };
+
+      await waitForHtml2Pdf();
+
+      const opt = {
+        margin: 10,
+        filename: `${formData.businessContext.companyName.replace(/\s+/g, '-')}-AdSmith-Analysis.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+
+      await (window as any).html2pdf().set(opt).from(container).save();
+      
+      // Clean up
+      document.body.removeChild(container);
     } catch (error) {
       console.error('PDF generation error:', error);
     } finally {
       setIsGeneratingPdf(false);
     }
+  };
+
+  const generatePdfHtml = (): string => {
+    return `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto; padding: 20px;">
+        <div style="text-align: center; margin-bottom: 30px; padding-bottom: 15px; border-bottom: 3px solid #e85d04;">
+          <h1 style="color: #e85d04; font-size: 24px; margin-bottom: 5px;">AdSmith Analysis</h1>
+          <p style="color: #666; margin: 0;">Brand Lift Strategy for ${formData.businessContext.companyName}</p>
+        </div>
+
+        <div style="margin-bottom: 25px;">
+          <h2 style="color: #e85d04; font-size: 16px; margin-bottom: 10px; padding-bottom: 5px; border-bottom: 1px solid #ddd;">Brand Maturity Assessment</h2>
+          <div style="display: inline-block; background: #e85d04; color: white; padding: 5px 15px; border-radius: 20px; font-weight: bold; margin-bottom: 10px;">
+            ${tierLabels[result.brandGapAnalysis.tier]}
+          </div>
+          <p style="margin: 10px 0;"><strong>Score:</strong> ${result.brandGapAnalysis.score}/100</p>
+          <p style="margin-top: 10px; color: #555;">${result.brandGapAnalysis.brandDemandGap}</p>
+        </div>
+
+        <div style="margin-bottom: 25px;">
+          <h2 style="color: #e85d04; font-size: 16px; margin-bottom: 10px; padding-bottom: 5px; border-bottom: 1px solid #ddd;">Budget Recommendations</h2>
+          <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+            <div style="flex: 1; min-width: 200px; border: 1px solid #ddd; padding: 15px; border-radius: 8px;">
+              <strong>Conservative Start</strong>
+              <div style="font-size: 20px; font-weight: bold; color: #e85d04; margin: 8px 0;">${result.budgetRecommendation.conservative.displayTotal}</div>
+              <p style="font-size: 14px; color: #666; margin: 0;">${result.budgetRecommendation.conservative.summary}</p>
+            </div>
+            <div style="flex: 1; min-width: 200px; border: 2px solid #e85d04; padding: 15px; border-radius: 8px;">
+              <strong>Aggressive Growth</strong>
+              <div style="font-size: 20px; font-weight: bold; color: #e85d04; margin: 8px 0;">${result.budgetRecommendation.aggressive.displayTotal}</div>
+              <p style="font-size: 14px; color: #666; margin: 0;">${result.budgetRecommendation.aggressive.summary}</p>
+            </div>
+          </div>
+          ${result.semrushDisclaimer ? `<p style="font-size: 11px; color: #999; font-style: italic; margin-top: 10px;">⚠️ ${result.semrushDisclaimer}</p>` : ''}
+        </div>
+
+        <div style="margin-bottom: 25px;">
+          <h2 style="color: #e85d04; font-size: 16px; margin-bottom: 10px; padding-bottom: 5px; border-bottom: 1px solid #ddd;">Recommended Ad Angles</h2>
+          ${result.messagingRecommendation.adAngles.map(angle => `
+            <div style="background: #f9f9f9; padding: 15px; border-radius: 8px; margin-bottom: 10px;">
+              <div style="color: #e85d04; font-size: 11px; text-transform: uppercase; font-weight: bold; margin-bottom: 5px;">${angle.type.replace('-', ' ')}</div>
+              <h3 style="font-size: 14px; margin: 0 0 8px 0;">${angle.headline}</h3>
+              <p style="margin: 0; font-size: 13px; color: #555;">${angle.subheadline}</p>
+              <p style="margin-top: 8px; font-size: 12px;"><strong>CTA:</strong> ${angle.ctaText}</p>
+            </div>
+          `).join('')}
+        </div>
+
+        <div style="margin-bottom: 25px;">
+          <h2 style="color: #e85d04; font-size: 16px; margin-bottom: 10px; padding-bottom: 5px; border-bottom: 1px solid #ddd;">Executive Summary</h2>
+          <p style="color: #555; font-size: 13px;">${result.executiveSummary}</p>
+        </div>
+
+        <div style="margin-bottom: 25px;">
+          <h2 style="color: #e85d04; font-size: 16px; margin-bottom: 10px; padding-bottom: 5px; border-bottom: 1px solid #ddd;">Recommended Next Steps</h2>
+          <ol style="padding-left: 20px; color: #555; font-size: 13px;">
+            ${result.nextSteps.map(step => `<li style="margin-bottom: 8px;">${step}</li>`).join('')}
+          </ol>
+        </div>
+
+        <div style="margin-top: 30px; padding-top: 15px; border-top: 1px solid #ddd; text-align: center; color: #999; font-size: 11px;">
+          <p style="margin: 0;">Generated by AdSmith | Abstrakt Marketing Group</p>
+          <p style="margin: 5px 0 0 0;">For questions, contact us at abstrakt.com</p>
+        </div>
+      </div>
+    `;
   };
 
   const handleRegenerate = async () => {
@@ -167,7 +265,7 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
                 {tierLabels[result.brandGapAnalysis.tier]}
               </span>
             </div>
-            
+
             {/* Score Bar */}
             <div className="mb-6">
               <div className="flex justify-between text-sm mb-2">
@@ -175,9 +273,9 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
                 <span className="text-white font-semibold">{result.brandGapAnalysis.score}/100</span>
               </div>
               <div className="progress-bar">
-                <div 
-                  className="progress-bar-fill" 
-                  style={{ width: `${result.brandGapAnalysis.score}%` }} 
+                <div
+                  className="progress-bar-fill"
+                  style={{ width: `${result.brandGapAnalysis.score}%` }}
                 />
               </div>
             </div>
@@ -190,7 +288,6 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
           {/* Budget Recommendations */}
           <div className="abstrakt-card p-6">
             <h3 className="section-header mb-6">Budget Recommendations</h3>
-            
             <div className="grid md:grid-cols-2 gap-6">
               {/* Conservative */}
               <div className="bg-abstrakt-input rounded-lg p-5 border border-abstrakt-input-border">
@@ -239,7 +336,7 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
             )}
           </div>
 
-          {/* Competitor Budget Estimates - NEW */}
+          {/* Competitor Budget Estimates */}
           {result.budgetRecommendation.competitorEstimates && result.budgetRecommendation.competitorEstimates.length > 0 && (
             <div className="abstrakt-card p-6">
               <h3 className="section-header mb-4">Estimated Competitor Ad Spend</h3>
@@ -265,7 +362,7 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
             </div>
           )}
 
-          {/* Top Keywords with CPC - NEW */}
+          {/* Top Keywords with CPC */}
           {result.budgetRecommendation.topKeywords && result.budgetRecommendation.topKeywords.length > 0 && (
             <div className="abstrakt-card p-6">
               <h3 className="section-header mb-4">Top 5 Keywords & Estimated CPC</h3>
@@ -474,10 +571,7 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
 
       {/* Creative Tab */}
       {activeTab === 'creative' && (
-        <AdCreativeGenerator 
-          result={result} 
-          formData={formData}
-        />
+        <AdCreativeGenerator result={result} formData={formData} />
       )}
     </div>
   );
