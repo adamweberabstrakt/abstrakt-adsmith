@@ -50,25 +50,31 @@ export function ChilipiperPopup({ isOpen, onClose }: ChilipiperPopupProps) {
         className="relative w-full max-w-2xl bg-abstrakt-card rounded-xl shadow-2xl border border-abstrakt-card-border overflow-hidden"
         style={{ maxHeight: '90vh' }}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-abstrakt-card-border bg-abstrakt-bg">
-          <div>
-            <h3 className="text-lg font-heading font-bold text-white">Schedule a Meeting</h3>
-            <p className="text-sm text-abstrakt-text-muted">Pick a time that works for you</p>
+        {/* Header with new explanatory text */}
+        <div className="p-6 border-b border-abstrakt-card-border bg-gradient-to-r from-abstrakt-orange/10 to-transparent">
+          <div className="flex items-start justify-between">
+            <div className="flex-1 pr-4">
+              <h3 className="text-xl font-heading font-bold text-white mb-2">
+                Want to learn more about your brand lift results?
+              </h3>
+              <p className="text-abstrakt-text-muted">
+                Schedule a call with our team to review your AI assessment and discover how to improve your AI Search visibility and brand positioning.
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-2 rounded-lg hover:bg-abstrakt-input transition-colors text-abstrakt-text-muted hover:text-white flex-shrink-0"
+              aria-label="Close"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-lg hover:bg-abstrakt-input transition-colors text-abstrakt-text-muted hover:text-white"
-            aria-label="Close"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
         </div>
 
         {/* Iframe Container */}
-        <div className="relative" style={{ height: '600px' }}>
+        <div className="relative" style={{ height: '550px' }}>
           <iframe
             src={CHILIPIPER_URL}
             title="Schedule a Meeting"
