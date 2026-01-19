@@ -12,11 +12,185 @@ interface ResultsDisplayProps {
   onOpenScheduler: () => void;
 }
 
+// Radar Gauge Component
+function RadarGauge({ score, tier }: { score: number; tier: string }) {
+  const [animatedScore, setAnimatedScore] = useState(0);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    // Animate the score from 0 to actual value
+    const duration = 1500;
+    const startTime = Date.now();
+    
+    const animate = () => {
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const easeOut = 1 - Math.pow(1 - progress, 3);
+      setAnimatedScore(Math.round(score * easeOut));
+      
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      }
+    };
+    
+    requestAnimationFrame(animate);
+  }, [score]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    const radius = Math.min(centerX, centerY) - 20;
+
+    // Clear canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Draw radar circles
+    ctx.strokeStyle = 'rgba(232, 93, 4, 0.2)';
+    ctx.lineWidth = 1;
+    for (let i = 1; i <= 4; i++) {
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, (radius / 4) * i, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // Draw radar lines
+    for (let i = 0; i < 8; i++) {
+      const angle = (Math.PI * 2 / 8) * i - Math.PI / 2;
+      ctx.beginPath();
+      ctx.moveTo(centerX, centerY);
+      ctx.lineTo(
+        centerX + Math.cos(angle) * radius,
+        centerY + Math.sin(angle) * radius
+      );
+      ctx.stroke();
+    }
+
+    // Draw score arc
+    const scoreAngle = (animatedScore / 100) * Math.PI * 2 - Math.PI / 2;
+    const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+    gradient.addColorStop(0, '#e85d04');
+    gradient.addColorStop(1, '#ff8c42');
+    
+    ctx.strokeStyle = gradient;
+    ctx.lineWidth = 8;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius - 10, -Math.PI / 2, scoreAngle);
+    ctx.stroke();
+
+    // Draw pulsing dot at end of arc
+    const dotX = centerX + Math.cos(scoreAngle) * (radius - 10);
+    const dotY = centerY + Math.sin(scoreAngle) * (radius - 10);
+    
+    ctx.fillStyle = '#e85d04';
+    ctx.beginPath();
+    ctx.arc(dotX, dotY, 6, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Draw glow effect
+    ctx.shadowColor = '#e85d04';
+    ctx.shadowBlur = 15;
+    ctx.beginPath();
+    ctx.arc(dotX, dotY, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+  }, [animatedScore]);
+
+  const tierColors: Record<string, string> = {
+    emerging: '#facc15',
+    developing: '#3b82f6',
+    established: '#22c55e',
+    dominant: '#a855f7',
+  };
+
+  return (
+    <div className="relative flex flex-col items-center">
+      <canvas
+        ref={canvasRef}
+        width={200}
+        height={200}
+        className="mb-2"
+      />
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="text-4xl font-heading font-bold text-white">{animatedScore}</span>
+        <span className="text-sm text-abstrakt-text-muted">/100</span>
+      </div>
+      <div 
+        className="mt-2 px-4 py-1 rounded-full text-sm font-semibold"
+        style={{ backgroundColor: `${tierColors[tier]}20`, color: tierColors[tier] }}
+      >
+        Brand Radar Score
+      </div>
+    </div>
+  );
+}
+
+// Tier content configurations
+const tierContent: Record<string, {
+  extendedDescription: string;
+  bulletPoints: string[];
+}> = {
+  emerging: {
+    extendedDescription: `Your brand is in the early stages of market presence. While you have established basic brand elements, there's significant opportunity to build awareness and recognition in your target market. At this stage, most potential customers are unlikely to search for your brand directly, and AI-powered search engines may have limited data about your company.
+
+This presents both a challenge and an opportunity. Focused investment in brand-building activities now can accelerate your path to becoming a recognized player in your industry. The key is consistent messaging across all channels while building the digital footprint that AI systems use to evaluate brand authority.`,
+    bulletPoints: [
+      'Limited brand recognition among target audience - focus on awareness campaigns',
+      'Minimal branded search volume indicates opportunity for growth',
+      'AI search platforms have limited data about your brand authority',
+      'Competitors likely have stronger digital presence and brand recall',
+      'Investment in consistent brand messaging will yield compounding returns',
+    ],
+  },
+  developing: {
+    extendedDescription: `Your brand has moved beyond the initial stages and is actively building market presence. You've established some recognition within your target audience, and there are signs of organic brand interest through search activity. AI platforms are beginning to recognize your brand, though your authority signals may still be developing.
+
+This is a critical growth phase where strategic investment can significantly accelerate your trajectory. The foundation is in place, and now the focus should shift to expanding reach while deepening engagement with your existing audience. Consistency in messaging and increased visibility will help solidify your position.`,
+    bulletPoints: [
+      'Growing brand awareness with room for significant expansion',
+      'Some branded search activity indicates market traction',
+      'AI search platforms recognize your brand but authority is still building',
+      'Competitive positioning is taking shape but not yet differentiated',
+      'Strategic content and paid media can accelerate growth trajectory',
+    ],
+  },
+  established: {
+    extendedDescription: `Your brand has achieved solid market presence with meaningful recognition among your target audience. Branded search volume indicates that customers actively seek you out, and AI platforms recognize your brand as a credible option in your category. Your competitive positioning is clear, and you have differentiated value propositions.
+
+At this stage, the focus shifts from building awareness to optimizing and expanding. There's opportunity to capture more market share, defend against competitors, and leverage your brand equity across new channels or offerings. Paid media can amplify your reach while building on the organic momentum you've created.`,
+    bulletPoints: [
+      'Strong brand recognition within target market segments',
+      'Consistent branded search volume demonstrates customer intent',
+      'AI search platforms recognize your authority and cite you as a credible source',
+      'Clear competitive differentiation and market positioning',
+      'Opportunity to expand reach and defend market share through strategic media',
+    ],
+  },
+  dominant: {
+    extendedDescription: `Your brand has achieved market leadership with high recognition and strong preference among your target audience. Branded search volume is robust, indicating strong customer loyalty and active demand. AI-powered search platforms consistently reference your brand as an authority in your space, often recommending you as a top option.
+
+The focus at this stage is maintaining and extending your dominant position. This means continuing to innovate your messaging, staying ahead of competitive threats, and exploring adjacent markets or new customer segments. Your brand equity is a significant asset that can be leveraged for premium positioning and continued growth.`,
+    bulletPoints: [
+      'Market-leading brand recognition and customer preference',
+      'Strong branded search volume indicates loyal customer base',
+      'AI platforms consistently cite you as a category authority',
+      'Competitors benchmark against your brand positioning',
+      'Focus on maintaining leadership while exploring expansion opportunities',
+    ],
+  },
+};
+
 export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMessaging, onOpenScheduler }: ResultsDisplayProps) {
   const [activeTab, setActiveTab] = useState<'overview' | 'messaging' | 'creative'>('overview');
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
-  const pdfContentRef = useRef<HTMLDivElement>(null);
 
   const tierColors: Record<string, string> = {
     emerging: 'text-yellow-400',
@@ -49,7 +223,6 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
       });
     };
 
-    // Load html2canvas and jsPDF
     loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js', 'html2canvas-script');
     loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', 'jspdf-script');
   }, []);
@@ -74,7 +247,6 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
     setIsGeneratingPdf(true);
     
     try {
-      // Wait for libraries to load
       const waitForLibs = () => {
         return new Promise<void>((resolve) => {
           const check = () => {
@@ -93,7 +265,6 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
       const html2canvas = (window as any).html2canvas;
       const { jsPDF } = (window as any).jspdf;
 
-      // Create a temporary container with the PDF content
       const container = document.createElement('div');
       container.innerHTML = generatePdfHtml();
       container.style.position = 'absolute';
@@ -103,10 +274,8 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
       container.style.backgroundColor = '#ffffff';
       document.body.appendChild(container);
 
-      // Wait a moment for content to render
       await new Promise(resolve => setTimeout(resolve, 100));
 
-      // Capture the content as an image
       const canvas = await html2canvas(container, {
         scale: 2,
         useCORS: true,
@@ -114,7 +283,6 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
         backgroundColor: '#ffffff',
       });
 
-      // Create PDF
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF({
         orientation: 'portrait',
@@ -124,34 +292,21 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
 
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
-      const imgWidth = canvas.width;
-      const imgHeight = canvas.height;
-      const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
-      const imgX = (pdfWidth - imgWidth * ratio) / 2;
-      const imgY = 0;
-
-      // Calculate if we need multiple pages
-      const scaledHeight = (imgHeight * pdfWidth) / imgWidth;
-      const pageHeight = pdfHeight;
+      const scaledHeight = (canvas.height * pdfWidth) / canvas.width;
       let heightLeft = scaledHeight;
       let position = 0;
 
-      // Add first page
       pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, scaledHeight);
-      heightLeft -= pageHeight;
+      heightLeft -= pdfHeight;
 
-      // Add additional pages if needed
       while (heightLeft > 0) {
         position = heightLeft - scaledHeight;
         pdf.addPage();
         pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, scaledHeight);
-        heightLeft -= pageHeight;
+        heightLeft -= pdfHeight;
       }
 
-      // Save the PDF
       pdf.save(`${formData.businessContext.companyName.replace(/\s+/g, '-')}-AdSmith-Analysis.pdf`);
-
-      // Clean up
       document.body.removeChild(container);
     } catch (error) {
       console.error('PDF generation error:', error);
@@ -162,10 +317,11 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
   };
 
   const generatePdfHtml = (): string => {
+    const content = tierContent[result.brandGapAnalysis.tier];
     return `
       <div style="font-family: Arial, Helvetica, sans-serif; line-height: 1.5; color: #333; padding: 40px; background: #ffffff;">
         <div style="text-align: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 4px solid #e85d04;">
-          <h1 style="color: #e85d04; font-size: 28px; margin: 0 0 8px 0; font-weight: bold;">AdSmith Analysis</h1>
+          <h1 style="color: #e85d04; font-size: 28px; margin: 0 0 8px 0; font-weight: bold;">AdSmith Radar Analysis</h1>
           <p style="color: #666; margin: 0; font-size: 16px;">Brand Lift Strategy for ${formData.businessContext.companyName}</p>
         </div>
 
@@ -174,8 +330,11 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
           <div style="display: inline-block; background: #e85d04; color: white; padding: 8px 20px; border-radius: 25px; font-weight: bold; font-size: 14px; margin-bottom: 15px;">
             ${tierLabels[result.brandGapAnalysis.tier]}
           </div>
-          <p style="margin: 10px 0; font-size: 16px;"><strong>Score:</strong> ${result.brandGapAnalysis.score}/100</p>
-          <p style="margin: 15px 0; color: #555; font-size: 14px; line-height: 1.6;">${result.brandGapAnalysis.brandDemandGap}</p>
+          <p style="margin: 10px 0; font-size: 16px;"><strong>Brand Radar Score:</strong> ${result.brandGapAnalysis.score}/100</p>
+          <p style="margin: 15px 0; color: #555; font-size: 14px; line-height: 1.6;">${content.extendedDescription.split('\n\n')[0]}</p>
+          <ul style="margin: 15px 0; padding-left: 20px;">
+            ${content.bulletPoints.map(bp => `<li style="margin: 8px 0; color: #555; font-size: 13px;">${bp}</li>`).join('')}
+          </ul>
         </div>
 
         <div style="margin-bottom: 30px;">
@@ -195,7 +354,6 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
               </td>
             </tr>
           </table>
-          ${result.semrushDisclaimer ? `<p style="font-size: 11px; color: #999; font-style: italic; margin-top: 15px;">⚠️ ${result.semrushDisclaimer}</p>` : ''}
         </div>
 
         <div style="margin-bottom: 30px;">
@@ -238,6 +396,8 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
       setIsRegenerating(false);
     }
   };
+
+  const currentTierContent = tierContent[result.brandGapAnalysis.tier];
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -313,31 +473,70 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
       {/* Overview Tab */}
       {activeTab === 'overview' && (
         <div className="space-y-6">
-          {/* Brand Tier Card */}
+          {/* Explanation Section */}
+          <div className="abstrakt-card p-6 border-l-4 border-abstrakt-orange bg-gradient-to-r from-abstrakt-orange/5 to-transparent">
+            <p className="text-abstrakt-text-muted leading-relaxed">
+              Below you will find the results of our AI-powered Brand Lift Radar assessment. Review the information to determine what next steps your brand should take to improve visibility in AI Search results and strengthen your overall brand positioning.
+            </p>
+          </div>
+
+          {/* Brand Tier Card with Radar Gauge */}
           <div className="abstrakt-card p-6">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-6">
               <h3 className="section-header">Brand Maturity Assessment</h3>
               <span className={`text-2xl font-heading font-bold ${tierColors[result.brandGapAnalysis.tier]}`}>
                 {tierLabels[result.brandGapAnalysis.tier]}
               </span>
             </div>
 
-            <div className="mb-6">
-              <div className="flex justify-between text-sm mb-2">
-                <span className="text-abstrakt-text-muted">Brand Score</span>
-                <span className="text-white font-semibold">{result.brandGapAnalysis.score}/100</span>
-              </div>
-              <div className="progress-bar">
-                <div
-                  className="progress-bar-fill"
-                  style={{ width: `${result.brandGapAnalysis.score}%` }}
-                />
+            {/* Radar Gauge and Score */}
+            <div className="flex flex-col md:flex-row items-center gap-8 mb-6">
+              <RadarGauge score={result.brandGapAnalysis.score} tier={result.brandGapAnalysis.tier} />
+              
+              <div className="flex-1">
+                {/* Progress bar */}
+                <div className="mb-4">
+                  <div className="flex justify-between text-sm mb-2">
+                    <span className="text-abstrakt-text-muted">Brand Score</span>
+                    <span className="text-white font-semibold">{result.brandGapAnalysis.score}/100</span>
+                  </div>
+                  <div className="progress-bar">
+                    <div
+                      className="progress-bar-fill"
+                      style={{ width: `${result.brandGapAnalysis.score}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Original analysis */}
+                <p className="text-abstrakt-text-muted leading-relaxed">
+                  {result.brandGapAnalysis.brandDemandGap}
+                </p>
               </div>
             </div>
 
-            <p className="text-abstrakt-text-muted leading-relaxed">
-              {result.brandGapAnalysis.brandDemandGap}
-            </p>
+            {/* Extended Description */}
+            <div className="border-t border-abstrakt-card-border pt-6 mt-6">
+              <h4 className="text-lg font-semibold text-white mb-4">What This Means for Your Brand</h4>
+              {currentTierContent.extendedDescription.split('\n\n').map((paragraph, idx) => (
+                <p key={idx} className="text-abstrakt-text-muted leading-relaxed mb-4">
+                  {paragraph}
+                </p>
+              ))}
+
+              {/* Bullet Points */}
+              <div className="bg-abstrakt-input rounded-lg p-5 mt-4">
+                <h5 className="text-sm font-semibold text-white mb-3">Key Insights for {tierLabels[result.brandGapAnalysis.tier]}s:</h5>
+                <ul className="space-y-2">
+                  {currentTierContent.bulletPoints.map((point, idx) => (
+                    <li key={idx} className="flex items-start gap-3">
+                      <span className="text-abstrakt-orange mt-1 flex-shrink-0">•</span>
+                      <span className="text-sm text-abstrakt-text-muted">{point}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
           </div>
 
           {/* Budget Recommendations */}
