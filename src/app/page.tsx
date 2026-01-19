@@ -82,13 +82,13 @@ export default function Home() {
     }
   }, []);
 
-  // Auto-popup timer when results are shown
+  // Auto-popup timer when results are shown - 45 seconds delay
   useEffect(() => {
     if (appStep === 'results' && !hasShownAutoPopup.current) {
       popupTimerRef.current = setTimeout(() => {
         setIsSchedulerOpen(true);
         hasShownAutoPopup.current = true;
-      }, 15000); // 15 seconds
+      }, 45000); // 45 seconds
     }
 
     return () => {
@@ -129,8 +129,8 @@ export default function Home() {
       ...data,
       attribution,
     };
+    
     setLeadData(leadWithAttribution);
-
     setAppStep('analyzing');
     setIsAnalyzing(true);
 
@@ -304,7 +304,7 @@ export default function Home() {
   return (
     <main className="min-h-screen pb-12">
       <BrandHeader />
-
+      
       <div className="max-w-4xl mx-auto px-4">
         {appStep === 'form' && (
           <>
@@ -313,7 +313,7 @@ export default function Home() {
               totalSteps={FORM_STEPS.length}
               steps={FORM_STEPS}
             />
-
+            
             <div className="mt-8">
               {renderFormStep()}
             </div>
@@ -324,9 +324,9 @@ export default function Home() {
                 onClick={handleBack}
                 disabled={currentFormStep === 0}
                 className={`px-6 py-3 rounded-lg font-semibold transition-all ${currentFormStep === 0
-                    ? 'opacity-50 cursor-not-allowed text-abstrakt-text-dim'
-                    : 'text-abstrakt-text-muted hover:text-white'
-                  }`}
+                  ? 'opacity-50 cursor-not-allowed text-abstrakt-text-dim'
+                  : 'text-abstrakt-text-muted hover:text-white'
+                }`}
               >
                 ← Back
               </button>
