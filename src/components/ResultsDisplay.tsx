@@ -10,6 +10,7 @@ interface ResultsDisplayProps {
   onStartOver: () => void;
   onRegenerateMessaging: () => Promise<void>;
   onOpenScheduler: () => void;
+  shareableId?: string | null;
 }
 
 // Radar Gauge Component
@@ -18,7 +19,6 @@ function RadarGauge({ score, tier }: { score: number; tier: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
-    // Animate the score from 0 to actual value
     const duration = 1500;
     const startTime = Date.now();
     
@@ -47,10 +47,8 @@ function RadarGauge({ score, tier }: { score: number; tier: string }) {
     const centerY = canvas.height / 2;
     const radius = Math.min(centerX, centerY) - 20;
 
-    // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Draw radar circles
     ctx.strokeStyle = 'rgba(232, 93, 4, 0.2)';
     ctx.lineWidth = 1;
     for (let i = 1; i <= 4; i++) {
@@ -59,7 +57,6 @@ function RadarGauge({ score, tier }: { score: number; tier: string }) {
       ctx.stroke();
     }
 
-    // Draw radar lines
     for (let i = 0; i < 8; i++) {
       const angle = (Math.PI * 2 / 8) * i - Math.PI / 2;
       ctx.beginPath();
@@ -71,7 +68,6 @@ function RadarGauge({ score, tier }: { score: number; tier: string }) {
       ctx.stroke();
     }
 
-    // Draw score arc
     const scoreAngle = (animatedScore / 100) * Math.PI * 2 - Math.PI / 2;
     const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
     gradient.addColorStop(0, '#e85d04');
@@ -84,7 +80,6 @@ function RadarGauge({ score, tier }: { score: number; tier: string }) {
     ctx.arc(centerX, centerY, radius - 10, -Math.PI / 2, scoreAngle);
     ctx.stroke();
 
-    // Draw pulsing dot at end of arc
     const dotX = centerX + Math.cos(scoreAngle) * (radius - 10);
     const dotY = centerY + Math.sin(scoreAngle) * (radius - 10);
     
@@ -93,7 +88,6 @@ function RadarGauge({ score, tier }: { score: number; tier: string }) {
     ctx.arc(dotX, dotY, 6, 0, Math.PI * 2);
     ctx.fill();
 
-    // Draw glow effect
     ctx.shadowColor = '#e85d04';
     ctx.shadowBlur = 15;
     ctx.beginPath();
@@ -132,7 +126,6 @@ function RadarGauge({ score, tier }: { score: number; tier: string }) {
   );
 }
 
-// Tier content configurations
 const tierContent: Record<string, {
   extendedDescription: string;
   bulletPoints: string[];
@@ -187,10 +180,11 @@ The focus at this stage is maintaining and extending your dominant position. Thi
   },
 };
 
-export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMessaging, onOpenScheduler }: ResultsDisplayProps) {
+export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMessaging, onOpenScheduler, shareableId }: ResultsDisplayProps) {
   const [activeTab, setActiveTab] = useState<'overview' | 'messaging' | 'creative'>('overview');
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const tierColors: Record<string, string> = {
     emerging: 'text-yellow-400',
@@ -206,7 +200,6 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
     dominant: 'Dominant Brand',
   };
 
-  // Load required scripts for PDF generation
   useEffect(() => {
     const loadScript = (src: string, id: string) => {
       return new Promise<void>((resolve) => {
@@ -228,6 +221,19 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
   }, []);
 
   const primaryCompetitor = formData.businessContext.competitorUrls?.find(url => url.trim() !== '');
+
+  const handleCopyLink = async () => {
+    try {
+      const url = shareableId 
+        ? `${window.location.origin}/results/${shareableId}`
+        : window.location.href;
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
 
   const handleCheckCompetitorAds = () => {
     if (primaryCompetitor) {
@@ -411,7 +417,28 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
             Your personalized brand lift strategy
           </p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3">
+          {/* Copy Link Button */}
+          <button
+            onClick={handleCopyLink}
+            className="abstrakt-button-outline text-sm px-4 py-2 flex items-center gap-2"
+          >
+            {copied ? (
+              <>
+                <svg className="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Copied!
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                </svg>
+                Share Results
+              </>
+            )}
+          </button>
           <button
             onClick={onOpenScheduler}
             className="abstrakt-button text-sm px-4 py-2 flex items-center gap-2"
@@ -494,7 +521,6 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
               <RadarGauge score={result.brandGapAnalysis.score} tier={result.brandGapAnalysis.tier} />
               
               <div className="flex-1">
-                {/* Progress bar */}
                 <div className="mb-4">
                   <div className="flex justify-between text-sm mb-2">
                     <span className="text-abstrakt-text-muted">Brand Score</span>
@@ -508,7 +534,6 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
                   </div>
                 </div>
 
-                {/* Original analysis */}
                 <p className="text-abstrakt-text-muted leading-relaxed">
                   {result.brandGapAnalysis.brandDemandGap}
                 </p>
@@ -524,7 +549,6 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
                 </p>
               ))}
 
-              {/* Bullet Points */}
               <div className="bg-abstrakt-input rounded-lg p-5 mt-4">
                 <h5 className="text-sm font-semibold text-white mb-3">Key Insights for {tierLabels[result.brandGapAnalysis.tier]}s:</h5>
                 <ul className="space-y-2">
