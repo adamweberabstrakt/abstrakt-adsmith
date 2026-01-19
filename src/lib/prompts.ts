@@ -24,13 +24,18 @@ const PLATFORM_CONFIG = {
   },
 } as const;
 
-// Calculate budget recommendations based on tier and inputs
+// Calculate budget recommendations based on tier, inputs, and existing PPC budget
 export function calculateBudgetRecommendation(tier: BrandMaturityTier, formData: FormData) {
-  // Conservative: Always $1,000-$2,500, single platform
+  const existingPpcBudget = formData.marketingState.monthlyPaidMediaBudget || 0;
+  
+  // Check if user has existing PPC budget > $5,000
+  if (existingPpcBudget > 5000) {
+    return calculateBudgetFromExisting(existingPpcBudget, formData);
+  }
+  
+  // Default logic for new advertisers or budgets <= $5,000
   const conservativeBudget = getConservativeBudget(tier);
   const conservativePlatform = getRecommendedSinglePlatform(formData);
-
-  // Aggressive: Multi-platform, $X,000+ format, max $5,000+
   const aggressiveBudget = getAggressiveBudget(tier, conservativeBudget);
   const aggressivePlatforms = getRecommendedMultiPlatforms(formData, tier);
 
@@ -40,6 +45,35 @@ export function calculateBudgetRecommendation(tier: BrandMaturityTier, formData:
       displayTotal: `$${conservativeBudget.toLocaleString()}`,
       platforms: [conservativePlatform],
       summary: `${conservativePlatform.displayName} - $${conservativeBudget.toLocaleString()}`,
+    },
+    aggressive: {
+      total: aggressiveBudget,
+      displayTotal: `$${aggressiveBudget.toLocaleString()}+`,
+      platforms: aggressivePlatforms,
+      summary: formatAggressiveSummary(aggressivePlatforms, aggressiveBudget),
+    },
+  };
+}
+
+// New function: Calculate budget based on existing PPC spend > $5k
+function calculateBudgetFromExisting(existingBudget: number, formData: FormData) {
+  // Conservative: Up to 25% LOWER than current budget
+  const conservativeReduction = 0.25;
+  const conservativeBudget = Math.round(existingBudget * (1 - conservativeReduction));
+  
+  // Aggressive: Up to 50% HIGHER than current budget
+  const aggressiveIncrease = 0.50;
+  const aggressiveBudget = Math.round(existingBudget * (1 + aggressiveIncrease));
+  
+  const conservativePlatform = getRecommendedSinglePlatform(formData);
+  const aggressivePlatforms = getRecommendedMultiPlatforms(formData, 'established');
+
+  return {
+    conservative: {
+      total: conservativeBudget,
+      displayTotal: `$${conservativeBudget.toLocaleString()}`,
+      platforms: [conservativePlatform],
+      summary: `Optimized spend: ${conservativePlatform.displayName} - $${conservativeBudget.toLocaleString()}`,
     },
     aggressive: {
       total: aggressiveBudget,
@@ -67,9 +101,9 @@ function getConservativeBudget(tier: BrandMaturityTier): number {
 }
 
 function getAggressiveBudget(tier: BrandMaturityTier, conservativeBudget: number): number {
-  // Must be at least 25% higher than conservative, max $5,000
+  // Must be at least 25% higher than conservative
   const minAggressive = Math.ceil(conservativeBudget * 1.35); // 35% higher to ensure > 25%
-
+  
   let baseBudget: number;
   switch (tier) {
     case 'emerging':
@@ -88,9 +122,8 @@ function getAggressiveBudget(tier: BrandMaturityTier, conservativeBudget: number
       baseBudget = 3500;
   }
 
-  // Ensure it's at least 25% higher and cap at $5,000
-  const finalBudget = Math.max(minAggressive, baseBudget);
-  return Math.min(finalBudget, 5000);
+  // Ensure it's at least 25% higher
+  return Math.max(minAggressive, baseBudget);
 }
 
 function getRecommendedSinglePlatform(formData: FormData): PlatformRecommendation {
@@ -100,7 +133,7 @@ function getRecommendedSinglePlatform(formData: FormData): PlatformRecommendatio
   };
 
   // B2B industries → LinkedIn
-  const b2bIndustries = ['B2B SaaS', 'Professional Services', 'Technology', 'Financial Services'];
+  const b2bIndustries = ['B2B SaaS', 'Professional Services', 'Technology', 'Financial Services', 'Finance', 'Accounting', 'Insurance', 'Managed Services (IT)'];
   if (b2bIndustries.includes(industry)) {
     return {
       platform: 'linkedin',
@@ -146,7 +179,7 @@ function getRecommendedMultiPlatforms(formData: FormData, tier: BrandMaturityTie
     primaryGoal: formData.marketingState.primaryGoal
   };
 
-  const b2bIndustries = ['B2B SaaS', 'Professional Services', 'Technology', 'Financial Services'];
+  const b2bIndustries = ['B2B SaaS', 'Professional Services', 'Technology', 'Financial Services', 'Finance', 'Accounting', 'Insurance', 'Managed Services (IT)'];
   const isB2B = b2bIndustries.includes(industry);
 
   // Always include Google Ads for aggressive
@@ -192,11 +225,11 @@ function getRecommendedMultiPlatforms(formData: FormData, tier: BrandMaturityTie
 
 function formatAggressiveSummary(platforms: PlatformRecommendation[], totalBudget: number): string {
   const platformNames = platforms.map(p => p.displayName);
-
+  
   if (platformNames.length === 1) {
     return `${platformNames[0]} - $${totalBudget.toLocaleString()}+`;
   }
-
+  
   if (platformNames.length === 2) {
     return `${platformNames.join(' + ')} - $${totalBudget.toLocaleString()}+`;
   }
@@ -211,8 +244,8 @@ export function buildAnalysisPrompt(formData: FormData): string {
 
   // Check if competitor URLs were provided
   const hasCompetitors = businessContext.competitorUrls?.filter(u => u.trim()).length > 0;
-  const competitorSection = hasCompetitors 
-    ? `- Competitors: ${businessContext.competitorUrls.filter(u => u.trim()).join(', ')}` 
+  const competitorSection = hasCompetitors
+    ? `- Competitors: ${businessContext.competitorUrls.filter(u => u.trim()).join(', ')}`
     : '';
 
   return `You are an expert B2B marketing strategist specializing in paid media and AI search visibility. Analyze the following business and provide strategic recommendations.
@@ -351,7 +384,7 @@ export function parseAnalysisResponse(response: string, formData: FormData): Ana
 
   const parsed = JSON.parse(cleanResponse);
 
-  // Calculate budget recommendations based on the tier
+  // Calculate budget recommendations based on the tier and existing PPC budget
   const budgetRecommendation = calculateBudgetRecommendation(
     parsed.brandGapAnalysis.tier,
     formData
@@ -361,12 +394,16 @@ export function parseAnalysisResponse(response: string, formData: FormData): Ana
   const competitorEstimates: CompetitorBudgetEstimate[] | undefined = parsed.competitorEstimates;
   const topKeywords: KeywordCPC[] | undefined = parsed.topKeywords;
 
+  // Check if using existing budget logic
+  const existingPpcBudget = formData.marketingState.monthlyPaidMediaBudget || 0;
+  const usingExistingBudget = existingPpcBudget > 5000;
+
   return {
     ...parsed,
     budgetRecommendation: {
       type: formData.marketingState.monthlyPaidMediaBudget ? 'existing' : 'new',
       ...budgetRecommendation,
-      rationale: generateBudgetRationale(parsed.brandGapAnalysis.tier, formData),
+      rationale: generateBudgetRationale(parsed.brandGapAnalysis.tier, formData, usingExistingBudget),
       competitorEstimates,
       topKeywords,
     },
@@ -375,7 +412,7 @@ export function parseAnalysisResponse(response: string, formData: FormData): Ana
 }
 
 // Parse regenerated messaging response
-export function parseRegenerateMessagingResponse(response: string): { 
+export function parseRegenerateMessagingResponse(response: string): {
   adAngles: AnalysisResult['messagingRecommendation']['adAngles'];
   toneGuidance: string;
   keyDifferentiators: string[];
@@ -394,11 +431,13 @@ export function parseRegenerateMessagingResponse(response: string): {
   return JSON.parse(cleanResponse);
 }
 
-function generateBudgetRationale(tier: BrandMaturityTier, formData: FormData): string {
-  const { industry, primaryGoal } = {
-    industry: formData.businessContext.industry,
-    primaryGoal: formData.marketingState.primaryGoal
-  };
+function generateBudgetRationale(tier: BrandMaturityTier, formData: FormData, usingExistingBudget: boolean): string {
+  const { industry } = { industry: formData.businessContext.industry };
+
+  if (usingExistingBudget) {
+    const existingBudget = formData.marketingState.monthlyPaidMediaBudget || 0;
+    return `Based on your current paid media investment of $${existingBudget.toLocaleString()}/month, we've calculated optimized budget recommendations. The conservative option allows for efficiency improvements with up to 25% savings, while the aggressive option expands reach with up to 50% additional investment across multiple platforms for accelerated brand visibility.`;
+  }
 
   const tierDescriptions: Record<BrandMaturityTier, string> = {
     emerging: 'an emerging brand with significant growth opportunity',
