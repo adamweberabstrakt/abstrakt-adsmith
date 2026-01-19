@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { BrandHeader } from '@/components/Logo';
 import { ProgressIndicator } from '@/components/ProgressIndicator';
 import { BusinessContextForm } from '@/components/BusinessContextForm';
@@ -14,11 +15,15 @@ import { FormData, AnalysisResult, LeadCaptureData, AttributionData, FORM_STEPS 
 type AppStep = 'form' | 'lead-capture' | 'analyzing' | 'results';
 
 export default function Home() {
+  const router = useRouter();
   const [currentFormStep, setCurrentFormStep] = useState(0);
   const [appStep, setAppStep] = useState<AppStep>('form');
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [leadData, setLeadData] = useState<LeadCaptureData | null>(null);
+  
+  // Shareable results
+  const [shareableId, setShareableId] = useState<string | null>(null);
   
   // Chilipiper popup state
   const [isSchedulerOpen, setIsSchedulerOpen] = useState(false);
@@ -151,6 +156,30 @@ export default function Home() {
       const result = await response.json();
       setAnalysisResult(result);
 
+      // Save to KV for shareable link
+      try {
+        const saveResponse = await fetch('/api/results', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            formData,
+            leadData: leadWithAttribution,
+            analysisResult: result,
+          }),
+        });
+
+        if (saveResponse.ok) {
+          const { id } = await saveResponse.json();
+          setShareableId(id);
+          
+          // Update URL without navigation (so refresh works)
+          window.history.replaceState({}, '', `/results/${id}`);
+        }
+      } catch (saveError) {
+        console.error('Error saving shareable results:', saveError);
+        // Don't block results display if save fails
+      }
+
       // Send to Zapier webhook
       try {
         await fetch('/api/zapier', {
@@ -225,10 +254,14 @@ export default function Home() {
       clearTimeout(popupTimerRef.current);
     }
 
+    // Reset URL
+    window.history.replaceState({}, '', '/');
+
     setCurrentFormStep(0);
     setAppStep('form');
     setAnalysisResult(null);
     setLeadData(null);
+    setShareableId(null);
     setFormData({
       businessContext: {
         companyName: '',
@@ -367,6 +400,7 @@ export default function Home() {
             onStartOver={handleStartOver}
             onRegenerateMessaging={handleRegenerateMessaging}
             onOpenScheduler={handleOpenScheduler}
+            shareableId={shareableId}
           />
         )}
       </div>
