@@ -224,7 +224,7 @@ export function BusinessContextForm({ data, onChange }: BusinessContextFormProps
         </div>
 
         <div className="space-y-4">
-          {[0, 1, 2].map((index) => (
+          {[0, 1].map((index) => (
             <div key={index}>
               <label className="block text-sm text-abstrakt-text-muted mb-2">
                 Competitor {index + 1} URL
