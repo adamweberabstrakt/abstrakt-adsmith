@@ -17,10 +17,11 @@ const COMPANY_SIZES = [
 ];
 
 const ROLES = [
-  { value: 'founder', label: 'Founder / CEO' },
-  { value: 'marketing', label: 'Marketing Leader' },
-  { value: 'sales', label: 'Sales Leader' },
-  { value: 'operations', label: 'Operations' },
+  { value: 'owner', label: 'Owner' },
+  { value: 'director', label: 'Director' },
+  { value: 'manager', label: 'Manager' },
+  { value: 'marketing', label: 'Marketing' },
+  { value: 'sales', label: 'Sales' },
   { value: 'other', label: 'Other' },
 ];
 
@@ -29,7 +30,7 @@ export function LeadCaptureForm({ onSubmit, companyName }: LeadCaptureFormProps)
     email: '',
     companySize: '',
     role: '',
-    wantsCall: false,
+    wantsCall: true,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
