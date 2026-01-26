@@ -13,6 +13,15 @@ interface ResultsDisplayProps {
   shareableId?: string | null;
 }
 
+// Helper function to get platform badge color classes
+function getPlatformColorClasses(platformName: string): string {
+  if (platformName === 'CTV and Display' || platformName === 'OTT Ads' || platformName === 'OTT') {
+    return 'bg-teal-900/50 text-teal-400 border border-teal-700';
+  }
+  // Google Ads, LinkedIn, Meta all get blue
+  return 'bg-blue-900/50 text-blue-400 border border-blue-700';
+}
+
 // Radar Gauge Component
 function RadarGauge({ score, tier }: { score: number; tier: string }) {
   const [animatedScore, setAnimatedScore] = useState(0);
@@ -21,25 +30,25 @@ function RadarGauge({ score, tier }: { score: number; tier: string }) {
   useEffect(() => {
     const duration = 1500;
     const startTime = Date.now();
-    
+
     const animate = () => {
       const elapsed = Date.now() - startTime;
       const progress = Math.min(elapsed / duration, 1);
       const easeOut = 1 - Math.pow(1 - progress, 3);
       setAnimatedScore(Math.round(score * easeOut));
-      
+
       if (progress < 1) {
         requestAnimationFrame(animate);
       }
     };
-    
+
     requestAnimationFrame(animate);
   }, [score]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    
+
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
@@ -51,6 +60,7 @@ function RadarGauge({ score, tier }: { score: number; tier: string }) {
 
     ctx.strokeStyle = 'rgba(232, 93, 4, 0.2)';
     ctx.lineWidth = 1;
+
     for (let i = 1; i <= 4; i++) {
       ctx.beginPath();
       ctx.arc(centerX, centerY, (radius / 4) * i, 0, Math.PI * 2);
@@ -69,10 +79,11 @@ function RadarGauge({ score, tier }: { score: number; tier: string }) {
     }
 
     const scoreAngle = (animatedScore / 100) * Math.PI * 2 - Math.PI / 2;
+
     const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
     gradient.addColorStop(0, '#e85d04');
     gradient.addColorStop(1, '#ff8c42');
-    
+
     ctx.strokeStyle = gradient;
     ctx.lineWidth = 8;
     ctx.lineCap = 'round';
@@ -82,7 +93,7 @@ function RadarGauge({ score, tier }: { score: number; tier: string }) {
 
     const dotX = centerX + Math.cos(scoreAngle) * (radius - 10);
     const dotY = centerY + Math.sin(scoreAngle) * (radius - 10);
-    
+
     ctx.fillStyle = '#e85d04';
     ctx.beginPath();
     ctx.arc(dotX, dotY, 6, 0, Math.PI * 2);
@@ -94,7 +105,6 @@ function RadarGauge({ score, tier }: { score: number; tier: string }) {
     ctx.arc(dotX, dotY, 4, 0, Math.PI * 2);
     ctx.fill();
     ctx.shadowBlur = 0;
-
   }, [animatedScore]);
 
   const tierColors: Record<string, string> = {
@@ -116,7 +126,7 @@ function RadarGauge({ score, tier }: { score: number; tier: string }) {
         <span className="text-4xl font-heading font-bold text-white">{animatedScore}</span>
         <span className="text-sm text-abstrakt-text-muted">/100</span>
       </div>
-      <div 
+      <div
         className="mt-2 px-4 py-1 rounded-full text-sm font-semibold"
         style={{ backgroundColor: `${tierColors[tier]}20`, color: tierColors[tier] }}
       >
@@ -131,9 +141,7 @@ const tierContent: Record<string, {
   bulletPoints: string[];
 }> = {
   emerging: {
-    extendedDescription: `Your brand is in the early stages of market presence. While you have established basic brand elements, there's significant opportunity to build awareness and recognition in your target market. At this stage, most potential customers are unlikely to search for your brand directly, and AI-powered search engines may have limited data about your company.
-
-This presents both a challenge and an opportunity. Focused investment in brand-building activities now can accelerate your path to becoming a recognized player in your industry. The key is consistent messaging across all channels while building the digital footprint that AI systems use to evaluate brand authority.`,
+    extendedDescription: `Your brand is in the early stages of market presence. While you have established basic brand elements, there's significant opportunity to build awareness and recognition in your target market. At this stage, most potential customers are unlikely to search for your brand directly, and AI-powered search engines may have limited data about your company. This presents both a challenge and an opportunity. Focused investment in brand-building activities now can accelerate your path to becoming a recognized player in your industry. The key is consistent messaging across all channels while building the digital footprint that AI systems use to evaluate brand authority.`,
     bulletPoints: [
       'Limited brand recognition among target audience - focus on awareness campaigns',
       'Minimal branded search volume indicates opportunity for growth',
@@ -143,9 +151,7 @@ This presents both a challenge and an opportunity. Focused investment in brand-b
     ],
   },
   developing: {
-    extendedDescription: `Your brand has moved beyond the initial stages and is actively building market presence. You've established some recognition within your target audience, and there are signs of organic brand interest through search activity. AI platforms are beginning to recognize your brand, though your authority signals may still be developing.
-
-This is a critical growth phase where strategic investment can significantly accelerate your trajectory. The foundation is in place, and now the focus should shift to expanding reach while deepening engagement with your existing audience. Consistency in messaging and increased visibility will help solidify your position.`,
+    extendedDescription: `Your brand has moved beyond the initial stages and is actively building market presence. You've established some recognition within your target audience, and there are signs of organic brand interest through search activity. AI platforms are beginning to recognize your brand, though your authority signals may still be developing. This is a critical growth phase where strategic investment can significantly accelerate your trajectory. The foundation is in place, and now the focus should shift to expanding reach while deepening engagement with your existing audience. Consistency in messaging and increased visibility will help solidify your position.`,
     bulletPoints: [
       'Growing brand awareness with room for significant expansion',
       'Some branded search activity indicates market traction',
@@ -155,9 +161,7 @@ This is a critical growth phase where strategic investment can significantly acc
     ],
   },
   established: {
-    extendedDescription: `Your brand has achieved solid market presence with meaningful recognition among your target audience. Branded search volume indicates that customers actively seek you out, and AI platforms recognize your brand as a credible option in your category. Your competitive positioning is clear, and you have differentiated value propositions.
-
-At this stage, the focus shifts from building awareness to optimizing and expanding. There's opportunity to capture more market share, defend against competitors, and leverage your brand equity across new channels or offerings. Paid media can amplify your reach while building on the organic momentum you've created.`,
+    extendedDescription: `Your brand has achieved solid market presence with meaningful recognition among your target audience. Branded search volume indicates that customers actively seek you out, and AI platforms recognize your brand as a credible option in your category. Your competitive positioning is clear, and you have differentiated value propositions. At this stage, the focus shifts from building awareness to optimizing and expanding. There's opportunity to capture more market share, defend against competitors, and leverage your brand equity across new channels or offerings. Paid media can amplify your reach while building on the organic momentum you've created.`,
     bulletPoints: [
       'Strong brand recognition within target market segments',
       'Consistent branded search volume demonstrates customer intent',
@@ -167,9 +171,7 @@ At this stage, the focus shifts from building awareness to optimizing and expand
     ],
   },
   dominant: {
-    extendedDescription: `Your brand has achieved market leadership with high recognition and strong preference among your target audience. Branded search volume is robust, indicating strong customer loyalty and active demand. AI-powered search platforms consistently reference your brand as an authority in your space, often recommending you as a top option.
-
-The focus at this stage is maintaining and extending your dominant position. This means continuing to innovate your messaging, staying ahead of competitive threats, and exploring adjacent markets or new customer segments. Your brand equity is a significant asset that can be leveraged for premium positioning and continued growth.`,
+    extendedDescription: `Your brand has achieved market leadership with high recognition and strong preference among your target audience. Branded search volume is robust, indicating strong customer loyalty and active demand. AI-powered search platforms consistently reference your brand as an authority in your space, often recommending you as a top option. The focus at this stage is maintaining and extending your dominant position. This means continuing to innovate your messaging, staying ahead of competitive threats, and exploring adjacent markets or new customer segments. Your brand equity is a significant asset that can be leveraged for premium positioning and continued growth.`,
     bulletPoints: [
       'Market-leading brand recognition and customer preference',
       'Strong branded search volume indicates loyal customer base',
@@ -180,11 +182,23 @@ The focus at this stage is maintaining and extending your dominant position. Thi
   },
 };
 
-export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMessaging, onOpenScheduler, shareableId }: ResultsDisplayProps) {
+export function ResultsDisplay({
+  result,
+  formData,
+  onStartOver,
+  onRegenerateMessaging,
+  onOpenScheduler,
+  shareableId
+}: ResultsDisplayProps) {
   const [activeTab, setActiveTab] = useState<'overview' | 'messaging' | 'creative'>('overview');
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [copied, setCopied] = useState(false);
+  
+  // Suggestion Box state
+  const [suggestionText, setSuggestionText] = useState('');
+  const [isSubmittingSuggestion, setIsSubmittingSuggestion] = useState(false);
+  const [suggestionSubmitted, setSuggestionSubmitted] = useState(false);
 
   const tierColors: Record<string, string> = {
     emerging: 'text-yellow-400',
@@ -224,7 +238,7 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
 
   const handleCopyLink = async () => {
     try {
-      const url = shareableId 
+      const url = shareableId
         ? `${window.location.origin}/results/${shareableId}`
         : window.location.href;
       await navigator.clipboard.writeText(url);
@@ -248,10 +262,37 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
       window.open(transparencyUrl, '_blank', 'noopener,noreferrer');
     }
   };
+  
+  // Handle suggestion submission
+  const handleSubmitSuggestion = async () => {
+    if (!suggestionText.trim()) return;
+    
+    setIsSubmittingSuggestion(true);
+    try {
+      const response = await fetch('/api/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          feedback: suggestionText,
+          companyName: formData.businessContext.companyName,
+          email: '', // Will be filled from lead data on backend if available
+        }),
+      });
+      
+      if (response.ok) {
+        setSuggestionSubmitted(true);
+        setSuggestionText('');
+      }
+    } catch (error) {
+      console.error('Feedback submission error:', error);
+    } finally {
+      setIsSubmittingSuggestion(false);
+    }
+  };
 
   const handleDownloadPdf = async () => {
     setIsGeneratingPdf(true);
-    
+
     try {
       const waitForLibs = () => {
         return new Promise<void>((resolve) => {
@@ -290,6 +331,7 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
       });
 
       const imgData = canvas.toDataURL('image/png');
+
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
@@ -299,6 +341,7 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
       const scaledHeight = (canvas.height * pdfWidth) / canvas.width;
+
       let heightLeft = scaledHeight;
       let position = 0;
 
@@ -324,6 +367,7 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
 
   const generatePdfHtml = (): string => {
     const content = tierContent[result.brandGapAnalysis.tier];
+
     return `
       <div style="font-family: Arial, Helvetica, sans-serif; line-height: 1.5; color: #333; padding: 40px; background: #ffffff;">
         <div style="text-align: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 4px solid #e85d04;">
@@ -518,8 +562,11 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
 
             {/* Radar Gauge and Score */}
             <div className="flex flex-col md:flex-row items-center gap-8 mb-6">
-              <RadarGauge score={result.brandGapAnalysis.score} tier={result.brandGapAnalysis.tier} />
-              
+              <RadarGauge
+                score={result.brandGapAnalysis.score}
+                tier={result.brandGapAnalysis.tier}
+              />
+
               <div className="flex-1">
                 <div className="mb-4">
                   <div className="flex justify-between text-sm mb-2">
@@ -533,7 +580,6 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
                     />
                   </div>
                 </div>
-
                 <p className="text-abstrakt-text-muted leading-relaxed">
                   {result.brandGapAnalysis.brandDemandGap}
                 </p>
@@ -548,7 +594,6 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
                   {paragraph}
                 </p>
               ))}
-
               <div className="bg-abstrakt-input rounded-lg p-5 mt-4">
                 <h5 className="text-sm font-semibold text-white mb-3">Key Insights for {tierLabels[result.brandGapAnalysis.tier]}s:</h5>
                 <ul className="space-y-2">
@@ -563,7 +608,7 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
             </div>
           </div>
 
-          {/* Budget Recommendations */}
+          {/* Budget Recommendations - UPDATED with color-coded platforms */}
           <div className="abstrakt-card p-6">
             <h3 className="section-header mb-6">Budget Recommendations</h3>
             <div className="grid md:grid-cols-2 gap-6">
@@ -575,14 +620,21 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
                 <div className="text-3xl font-heading font-bold text-abstrakt-orange mb-2">
                   {result.budgetRecommendation.conservative.displayTotal}
                 </div>
-                <p className="text-sm text-abstrakt-text-muted mb-3">
-                  {result.budgetRecommendation.conservative.summary}
-                </p>
+                {/* Platform badges with colors */}
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {result.budgetRecommendation.conservative.platforms.map((platform, idx) => (
+                    <span 
+                      key={idx}
+                      className={`px-3 py-1 rounded-full text-xs font-semibold ${getPlatformColorClasses(platform.displayName)}`}
+                    >
+                      {platform.displayName}
+                    </span>
+                  ))}
+                </div>
                 <div className="text-xs text-abstrakt-text-dim">
                   Single platform focus for validation
                 </div>
               </div>
-
               <div className="bg-abstrakt-input rounded-lg p-5 border-2 border-abstrakt-orange">
                 <div className="flex items-center gap-2 mb-3">
                   <span className="text-abstrakt-orange">🚀</span>
@@ -591,19 +643,25 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
                 <div className="text-3xl font-heading font-bold text-abstrakt-orange mb-2">
                   {result.budgetRecommendation.aggressive.displayTotal}
                 </div>
-                <p className="text-sm text-abstrakt-text-muted mb-3">
-                  {result.budgetRecommendation.aggressive.summary}
-                </p>
+                {/* Platform badges with colors */}
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {result.budgetRecommendation.aggressive.platforms.map((platform, idx) => (
+                    <span 
+                      key={idx}
+                      className={`px-3 py-1 rounded-full text-xs font-semibold ${getPlatformColorClasses(platform.displayName)}`}
+                    >
+                      {platform.displayName}
+                    </span>
+                  ))}
+                </div>
                 <div className="text-xs text-abstrakt-text-dim">
                   Multi-platform for accelerated reach
                 </div>
               </div>
             </div>
-
             <p className="text-sm text-abstrakt-text-muted mt-4 leading-relaxed">
               {result.budgetRecommendation.rationale}
             </p>
-
             {result.semrushDisclaimer && (
               <p className="text-xs text-abstrakt-text-dim mt-4 italic border-t border-abstrakt-card-border pt-4">
                 ⚠️ {result.semrushDisclaimer}
@@ -662,9 +720,11 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
                         <td className="py-3 px-4 text-center text-abstrakt-text-muted">{kw.searchVolume}</td>
                         <td className="py-3 px-4 text-center">
                           <span className={`px-2 py-1 rounded text-xs font-medium ${
-                            kw.competition === 'high' ? 'bg-red-900/50 text-red-400' :
-                            kw.competition === 'medium' ? 'bg-yellow-900/50 text-yellow-400' :
-                            'bg-green-900/50 text-green-400'
+                            kw.competition === 'high'
+                              ? 'bg-red-900/50 text-red-400'
+                              : kw.competition === 'medium'
+                              ? 'bg-yellow-900/50 text-yellow-400'
+                              : 'bg-green-900/50 text-green-400'
                           }`}>
                             {kw.competition}
                           </span>
@@ -753,6 +813,55 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
               </button>
             </div>
           </div>
+          
+          {/* Suggestion Box */}
+          <div className="abstrakt-card p-6">
+            <h3 className="section-header mb-4">💡 Suggestion Box</h3>
+            <p className="text-sm text-abstrakt-text-muted mb-4">
+              Have feedback or ideas to improve this tool? We&apos;d love to hear from you!
+            </p>
+            {suggestionSubmitted ? (
+              <div className="bg-green-900/30 border border-green-700 rounded-lg p-4 text-green-400">
+                <div className="flex items-center gap-2">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Thank you for your feedback!
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <textarea
+                  value={suggestionText}
+                  onChange={(e) => setSuggestionText(e.target.value)}
+                  placeholder="Share your feedback or suggestions..."
+                  rows={3}
+                  className="abstrakt-input w-full resize-none"
+                />
+                <button
+                  onClick={handleSubmitSuggestion}
+                  disabled={isSubmittingSuggestion || !suggestionText.trim()}
+                  className={`abstrakt-button-outline flex items-center gap-2 ${
+                    (!suggestionText.trim() || isSubmittingSuggestion) ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
+                >
+                  {isSubmittingSuggestion ? (
+                    <>
+                      <span className="spinner w-4 h-4" />
+                      Submitting...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                      </svg>
+                      Submit Feedback
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -814,20 +923,17 @@ export function ResultsDisplay({ result, formData, onStartOver, onRegenerateMess
                     {angle.targetFunnelStage}
                   </span>
                 </div>
-
                 <h4 className="text-xl font-heading font-bold text-white mb-2">
                   {angle.headline}
                 </h4>
                 <p className="text-abstrakt-text-muted mb-4">
                   {angle.subheadline}
                 </p>
-
                 <div className="bg-abstrakt-input rounded-lg p-4 mb-4">
                   <p className="text-sm text-abstrakt-text-muted">
                     {angle.valueProposition}
                   </p>
                 </div>
-
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-abstrakt-text-dim">CTA:</span>
                   <span className="px-4 py-2 bg-abstrakt-orange rounded text-sm font-semibold text-white">
