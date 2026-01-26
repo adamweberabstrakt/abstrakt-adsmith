@@ -10,14 +10,15 @@ import { BrandMaturityForm } from '@/components/BrandMaturityForm';
 import { LeadCaptureForm } from '@/components/LeadCaptureForm';
 import { ResultsDisplay } from '@/components/ResultsDisplay';
 import { ChilipiperPopup } from '@/components/ChilipiperPopup';
+import { IntroSection } from '@/components/IntroSection';
 import { FormData, AnalysisResult, LeadCaptureData, AttributionData, FORM_STEPS } from '@/lib/types';
 
-type AppStep = 'form' | 'lead-capture' | 'analyzing' | 'results';
+type AppStep = 'intro' | 'form' | 'lead-capture' | 'analyzing' | 'results';
 
 export default function Home() {
   const router = useRouter();
   const [currentFormStep, setCurrentFormStep] = useState(0);
-  const [appStep, setAppStep] = useState<AppStep>('form');
+  const [appStep, setAppStep] = useState<AppStep>('intro');
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [leadData, setLeadData] = useState<LeadCaptureData | null>(null);
@@ -41,7 +42,7 @@ export default function Home() {
       salesCycleLength: '',
       geographicFocus: 'national',
       websiteUrl: '',
-      competitorUrls: ['', '', ''],
+      competitorUrls: ['', ''],
       customAdAngle: '',
     },
     marketingState: {
@@ -113,6 +114,10 @@ export default function Home() {
     }));
   };
 
+  const handleStartAssessment = () => {
+    setAppStep('form');
+  };
+
   const handleNext = () => {
     if (currentFormStep < FORM_STEPS.length - 1) {
       setCurrentFormStep(prev => prev + 1);
@@ -125,6 +130,9 @@ export default function Home() {
   const handleBack = () => {
     if (currentFormStep > 0) {
       setCurrentFormStep(prev => prev - 1);
+    } else {
+      // Go back to intro from first form step
+      setAppStep('intro');
     }
   };
 
@@ -155,7 +163,7 @@ export default function Home() {
 
       const result = await response.json();
       setAnalysisResult(result);
-
+      
       // Save to KV for shareable link
       try {
         const saveResponse = await fetch('/api/results', {
@@ -167,11 +175,10 @@ export default function Home() {
             analysisResult: result,
           }),
         });
-
+        
         if (saveResponse.ok) {
           const { id } = await saveResponse.json();
           setShareableId(id);
-          
           // Update URL without navigation (so refresh works)
           window.history.replaceState({}, '', `/results/${id}`);
         }
@@ -253,12 +260,12 @@ export default function Home() {
     if (popupTimerRef.current) {
       clearTimeout(popupTimerRef.current);
     }
-
+    
     // Reset URL
     window.history.replaceState({}, '', '/');
-
+    
     setCurrentFormStep(0);
-    setAppStep('form');
+    setAppStep('intro');
     setAnalysisResult(null);
     setLeadData(null);
     setShareableId(null);
@@ -270,7 +277,7 @@ export default function Home() {
         salesCycleLength: '',
         geographicFocus: 'national',
         websiteUrl: '',
-        competitorUrls: ['', '', ''],
+        competitorUrls: ['', ''],
         customAdAngle: '',
       },
       marketingState: {
@@ -339,6 +346,10 @@ export default function Home() {
       <BrandHeader />
       
       <div className="max-w-4xl mx-auto px-4">
+        {appStep === 'intro' && (
+          <IntroSection onStartAssessment={handleStartAssessment} />
+        )}
+
         {appStep === 'form' && (
           <>
             <ProgressIndicator
@@ -355,11 +366,7 @@ export default function Home() {
             <div className="flex justify-between mt-8">
               <button
                 onClick={handleBack}
-                disabled={currentFormStep === 0}
-                className={`px-6 py-3 rounded-lg font-semibold transition-all ${currentFormStep === 0
-                  ? 'opacity-50 cursor-not-allowed text-abstrakt-text-dim'
-                  : 'text-abstrakt-text-muted hover:text-white'
-                }`}
+                className="px-6 py-3 rounded-lg font-semibold transition-all text-abstrakt-text-muted hover:text-white"
               >
                 ← Back
               </button>
