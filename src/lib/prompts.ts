@@ -6,37 +6,58 @@ const PLATFORM_CONFIG = {
     displayName: 'Google Ads',
     channels: ['PMAX', 'Search', 'Demand Gen', 'Video', 'Display'],
     minBudget: 1000,
+    color: 'blue',
   },
-  'ott-ads': {
-    displayName: 'OTT Ads',
+  'ctv-display': {
+    displayName: 'CTV and Display',
     channels: ['Display', 'Online Video', 'Streaming CTV', 'Streaming Audio', 'Native'],
     minBudget: 1500,
+    color: 'teal',
   },
   'linkedin': {
     displayName: 'LinkedIn',
     channels: ['LinkedIn Ads'],
     minBudget: 1000,
+    color: 'blue',
   },
   'meta': {
     displayName: 'Meta',
     channels: ['Facebook & Instagram Ads'],
     minBudget: 800,
+    color: 'blue',
   },
 } as const;
 
-// Calculate budget recommendations based on tier, inputs, and existing PPC budget
-export function calculateBudgetRecommendation(tier: BrandMaturityTier, formData: FormData) {
+// Helper to extract low-end number from competitor spend estimate string like "$5,000-$10,000" or "$20,000+"
+function parseCompetitorSpendLowEnd(estimatedSpend: string): number {
+  // Remove $ and commas, get first number
+  const cleaned = estimatedSpend.replace(/[$,]/g, '');
+  const match = cleaned.match(/(\d+)/);
+  if (match) {
+    return parseInt(match[1], 10);
+  }
+  return 0;
+}
+
+// Calculate budget recommendations based on tier, inputs, existing PPC budget, and competitor data
+export function calculateBudgetRecommendation(
+  tier: BrandMaturityTier, 
+  formData: FormData,
+  competitorEstimates?: CompetitorBudgetEstimate[]
+) {
   const existingPpcBudget = formData.marketingState.monthlyPaidMediaBudget || 0;
-  
+
   // Check if user has existing PPC budget > $5,000
   if (existingPpcBudget > 5000) {
     return calculateBudgetFromExisting(existingPpcBudget, formData);
   }
-  
+
   // Default logic for new advertisers or budgets <= $5,000
   const conservativeBudget = getConservativeBudget(tier);
   const conservativePlatform = getRecommendedSinglePlatform(formData);
-  const aggressiveBudget = getAggressiveBudget(tier, conservativeBudget);
+  
+  // Calculate aggressive budget considering competitor spend
+  const aggressiveBudget = getAggressiveBudget(tier, conservativeBudget, competitorEstimates);
   const aggressivePlatforms = getRecommendedMultiPlatforms(formData, tier);
 
   return {
@@ -60,11 +81,11 @@ function calculateBudgetFromExisting(existingBudget: number, formData: FormData)
   // Conservative: Up to 25% LOWER than current budget
   const conservativeReduction = 0.25;
   const conservativeBudget = Math.round(existingBudget * (1 - conservativeReduction));
-  
+
   // Aggressive: Up to 50% HIGHER than current budget
   const aggressiveIncrease = 0.50;
   const aggressiveBudget = Math.round(existingBudget * (1 + aggressiveIncrease));
-  
+
   const conservativePlatform = getRecommendedSinglePlatform(formData);
   const aggressivePlatforms = getRecommendedMultiPlatforms(formData, 'established');
 
@@ -85,7 +106,7 @@ function calculateBudgetFromExisting(existingBudget: number, formData: FormData)
 }
 
 function getConservativeBudget(tier: BrandMaturityTier): number {
-  // Fixed range: $1,000 - $2,500
+  // Fixed range: $1,000 - $2,500 (single platform focus)
   switch (tier) {
     case 'emerging':
       return 1000;
@@ -100,10 +121,12 @@ function getConservativeBudget(tier: BrandMaturityTier): number {
   }
 }
 
-function getAggressiveBudget(tier: BrandMaturityTier, conservativeBudget: number): number {
-  // Must be at least 25% higher than conservative
-  const minAggressive = Math.ceil(conservativeBudget * 1.35); // 35% higher to ensure > 25%
-  
+function getAggressiveBudget(
+  tier: BrandMaturityTier, 
+  conservativeBudget: number,
+  competitorEstimates?: CompetitorBudgetEstimate[]
+): number {
+  // Base aggressive budget by tier
   let baseBudget: number;
   switch (tier) {
     case 'emerging':
@@ -122,8 +145,28 @@ function getAggressiveBudget(tier: BrandMaturityTier, conservativeBudget: number
       baseBudget = 3500;
   }
 
-  // Ensure it's at least 25% higher
-  return Math.max(minAggressive, baseBudget);
+  // Must be at least 25% higher than conservative
+  const minFromConservative = Math.ceil(conservativeBudget * 1.35);
+
+  // If we have competitor estimates, aggressive should be at least 50% of their LOW-END spend
+  let minFromCompetitors = 0;
+  if (competitorEstimates && competitorEstimates.length > 0) {
+    // Find the highest competitor spend low-end
+    const competitorLowEnds = competitorEstimates.map(c => parseCompetitorSpendLowEnd(c.estimatedMonthlySpend));
+    const maxCompetitorLowEnd = Math.max(...competitorLowEnds);
+    
+    // Aggressive should be at least 50% of competitor's low-end spend
+    // But floor at $1,000 and cap at $5,000 to not scare users
+    minFromCompetitors = Math.floor(maxCompetitorLowEnd * 0.5);
+    minFromCompetitors = Math.max(minFromCompetitors, 1000); // Floor: $1,000
+    minFromCompetitors = Math.min(minFromCompetitors, 5000); // Cap: $5,000
+  }
+
+  // Take the maximum of all constraints
+  const aggressiveBudget = Math.max(baseBudget, minFromConservative, minFromCompetitors);
+
+  // Final cap at $5,000 to not scare uneducated users
+  return Math.min(aggressiveBudget, 5000);
 }
 
 function getRecommendedSinglePlatform(formData: FormData): PlatformRecommendation {
@@ -137,7 +180,7 @@ function getRecommendedSinglePlatform(formData: FormData): PlatformRecommendatio
   if (b2bIndustries.includes(industry)) {
     return {
       platform: 'linkedin',
-      displayName: 'LinkedIn Ads',
+      displayName: 'LinkedIn',
       budget: 1500,
       channels: ['LinkedIn Ads'],
     };
@@ -153,11 +196,11 @@ function getRecommendedSinglePlatform(formData: FormData): PlatformRecommendatio
     };
   }
 
-  // Brand awareness → OTT
+  // Brand awareness → CTV and Display
   if (primaryGoal === 'brand') {
     return {
-      platform: 'ott-ads',
-      displayName: 'OTT Ads',
+      platform: 'ctv-display',
+      displayName: 'CTV and Display',
       budget: 1500,
       channels: ['Streaming CTV', 'Online Video'],
     };
@@ -200,11 +243,11 @@ function getRecommendedMultiPlatforms(formData: FormData, tier: BrandMaturityTie
     });
   }
 
-  // Add OTT for brand awareness or established+ tiers
+  // Add CTV and Display for brand awareness or established+ tiers
   if (primaryGoal === 'brand' || tier === 'established' || tier === 'dominant') {
     platforms.push({
-      platform: 'ott-ads',
-      displayName: 'OTT',
+      platform: 'ctv-display',
+      displayName: 'CTV and Display',
       budget: 1500,
       channels: ['Streaming CTV', 'Online Video'],
     });
@@ -233,7 +276,7 @@ function formatAggressiveSummary(platforms: PlatformRecommendation[], totalBudge
   if (platformNames.length === 2) {
     return `${platformNames.join(' + ')} - $${totalBudget.toLocaleString()}+`;
   }
-
+  
   // 3+ platforms: "Platform1 + Platform2 + Platform3 - $X,000+"
   return `${platformNames.join(' + ')} - $${totalBudget.toLocaleString()}+`;
 }
@@ -244,7 +287,7 @@ export function buildAnalysisPrompt(formData: FormData): string {
 
   // Check if competitor URLs were provided
   const hasCompetitors = businessContext.competitorUrls?.filter(u => u.trim()).length > 0;
-  const competitorSection = hasCompetitors
+  const competitorSection = hasCompetitors 
     ? `- Competitors: ${businessContext.competitorUrls.filter(u => u.trim()).join(', ')}`
     : '';
 
@@ -384,15 +427,16 @@ export function parseAnalysisResponse(response: string, formData: FormData): Ana
 
   const parsed = JSON.parse(cleanResponse);
 
-  // Calculate budget recommendations based on the tier and existing PPC budget
-  const budgetRecommendation = calculateBudgetRecommendation(
-    parsed.brandGapAnalysis.tier,
-    formData
-  );
-
-  // Extract competitor estimates and keywords from parsed response
+  // Extract competitor estimates from parsed response
   const competitorEstimates: CompetitorBudgetEstimate[] | undefined = parsed.competitorEstimates;
   const topKeywords: KeywordCPC[] | undefined = parsed.topKeywords;
+
+  // Calculate budget recommendations based on the tier, existing PPC budget, AND competitor data
+  const budgetRecommendation = calculateBudgetRecommendation(
+    parsed.brandGapAnalysis.tier,
+    formData,
+    competitorEstimates
+  );
 
   // Check if using existing budget logic
   const existingPpcBudget = formData.marketingState.monthlyPaidMediaBudget || 0;
@@ -403,7 +447,7 @@ export function parseAnalysisResponse(response: string, formData: FormData): Ana
     budgetRecommendation: {
       type: formData.marketingState.monthlyPaidMediaBudget ? 'existing' : 'new',
       ...budgetRecommendation,
-      rationale: generateBudgetRationale(parsed.brandGapAnalysis.tier, formData, usingExistingBudget),
+      rationale: generateBudgetRationale(parsed.brandGapAnalysis.tier, formData, usingExistingBudget, competitorEstimates),
       competitorEstimates,
       topKeywords,
     },
@@ -431,7 +475,12 @@ export function parseRegenerateMessagingResponse(response: string): {
   return JSON.parse(cleanResponse);
 }
 
-function generateBudgetRationale(tier: BrandMaturityTier, formData: FormData, usingExistingBudget: boolean): string {
+function generateBudgetRationale(
+  tier: BrandMaturityTier, 
+  formData: FormData, 
+  usingExistingBudget: boolean,
+  competitorEstimates?: CompetitorBudgetEstimate[]
+): string {
   const { industry } = { industry: formData.businessContext.industry };
 
   if (usingExistingBudget) {
@@ -446,5 +495,12 @@ function generateBudgetRationale(tier: BrandMaturityTier, formData: FormData, us
     dominant: 'a dominant brand optimizing market position',
   };
 
-  return `Based on your position as ${tierDescriptions[tier]} in the ${industry} industry, we recommend starting with a focused single-platform approach (conservative) to validate messaging and targeting. The aggressive option adds multi-platform reach to accelerate brand awareness and capture demand across the buyer journey.`;
+  // Add competitor context if available
+  let competitorContext = '';
+  if (competitorEstimates && competitorEstimates.length > 0) {
+    const spendEstimates = competitorEstimates.map(c => c.estimatedMonthlySpend).join(', ');
+    competitorContext = ` Your competitors appear to be investing ${spendEstimates} monthly, which we've factored into the aggressive recommendation to help you remain competitive.`;
+  }
+
+  return `Based on your position as ${tierDescriptions[tier]} in the ${industry} industry, we recommend starting with a focused single-platform approach (conservative) to validate messaging and targeting. The aggressive option adds multi-platform reach to accelerate brand awareness and capture demand across the buyer journey.${competitorContext}`;
 }
