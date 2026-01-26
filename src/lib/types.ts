@@ -76,8 +76,8 @@ export interface LeadCaptureData {
   attribution?: AttributionData;
 }
 
-// Platform types
-export type PlatformType = 'google-ads' | 'ott-ads' | 'linkedin' | 'meta';
+// Platform types - UPDATED: 'ott-ads' renamed to 'ctv-display'
+export type PlatformType = 'google-ads' | 'ctv-display' | 'linkedin' | 'meta';
 
 export interface PlatformRecommendation {
   platform: PlatformType;
@@ -86,7 +86,7 @@ export interface PlatformRecommendation {
   channels: string[];
 }
 
-// Keyword CPC data (NEW)
+// Keyword CPC data
 export interface KeywordCPC {
   keyword: string;
   avgCpc: string;
@@ -94,7 +94,7 @@ export interface KeywordCPC {
   competition: 'low' | 'medium' | 'high';
 }
 
-// Competitor Budget Estimate (NEW)
+// Competitor Budget Estimate
 export interface CompetitorBudgetEstimate {
   domain: string;
   estimatedMonthlySpend: string;
@@ -117,8 +117,8 @@ export interface BudgetRecommendation {
     summary: string;
   };
   rationale: string;
-  competitorEstimates?: CompetitorBudgetEstimate[];  // NEW
-  topKeywords?: KeywordCPC[];  // NEW
+  competitorEstimates?: CompetitorBudgetEstimate[];
+  topKeywords?: KeywordCPC[];
 }
 
 // Brand maturity tiers
@@ -187,14 +187,14 @@ export interface ZapierPayload {
   attribution: AttributionData;
 }
 
-// Platform configuration
+// Platform configuration - UPDATED: 'ott-ads' renamed to 'ctv-display'
 export const PLATFORMS = {
   'google-ads': {
     displayName: 'Google Ads',
     channels: ['PMAX', 'Search', 'Demand Gen', 'Video', 'Display'],
   },
-  'ott-ads': {
-    displayName: 'OTT Ads',
+  'ctv-display': {
+    displayName: 'CTV and Display',
     channels: ['Display', 'Online Video', 'Streaming CTV', 'Streaming Audio', 'Native'],
   },
   'linkedin': {
