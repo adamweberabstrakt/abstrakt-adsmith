@@ -8,22 +8,22 @@ export interface FormStep {
 export const FORM_STEPS: FormStep[] = [
   {
     id: 'business-context',
-    title: 'Business Context',
-    description: 'Tell us about your company',
+    title: 'Your Info',
+    description: 'Contact and company details',
   },
   {
     id: 'marketing-state',
-    title: 'Marketing State',
-    description: 'Current marketing investments',
+    title: 'Your Business',
+    description: 'Industry and competitive landscape',
   },
   {
     id: 'brand-maturity',
-    title: 'Brand Maturity',
-    description: 'Assess your brand strength',
+    title: 'Marketing & Brand',
+    description: 'Current marketing and brand position',
   },
 ];
 
-// Business Context
+// Business Context (now includes lead capture fields)
 export interface BusinessContextData {
   companyName: string;
   industry: string;
@@ -33,6 +33,12 @@ export interface BusinessContextData {
   websiteUrl: string;
   competitorUrls: string[];
   customAdAngle?: string;
+  // Lead capture fields (moved from LeadCaptureData)
+  email: string;
+  name: string;
+  companySize: string;
+  role: string;
+  wantsCall: boolean;
 }
 
 // Marketing State
@@ -67,7 +73,7 @@ export interface AttributionData {
   gclid?: string;
 }
 
-// Lead Capture
+// Lead Capture (kept for API compatibility, constructed from businessContext)
 export interface LeadCaptureData {
   email: string;
   companySize: string;
