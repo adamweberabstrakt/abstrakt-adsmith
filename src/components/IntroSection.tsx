@@ -36,6 +36,29 @@ export function IntroSection({ onStartAssessment }: IntroSectionProps) {
         />
       </div>
 
+      {/* CTA Button - Moved up after infographic */}
+      <div className="text-center space-y-4">
+        <button
+          onClick={onStartAssessment}
+          className="abstrakt-button text-xl px-12 py-5 font-bold shadow-lg hover:shadow-xl transition-all transform hover:scale-105"
+        >
+          Start Assessment
+        </button>
+        
+        {/* Abstrakt Attribution */}
+        <p className="text-xs text-abstrakt-text-dim">
+          This free assessment is provided by{' '}
+          <a 
+            href="https://www.abstraktmg.com/digital-marketing-services/" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="text-abstrakt-orange hover:underline"
+          >
+            Abstrakt
+          </a>
+        </p>
+      </div>
+
       {/* What This Assessment Will Do */}
       <div className="abstrakt-card p-8">
         <h2 className="text-2xl font-heading font-bold text-white mb-4">
@@ -128,29 +151,6 @@ export function IntroSection({ onStartAssessment }: IntroSectionProps) {
             </div>
           </div>
         </div>
-      </div>
-
-      {/* CTA Button */}
-      <div className="text-center space-y-4 pb-8">
-        <button
-          onClick={onStartAssessment}
-          className="abstrakt-button text-xl px-12 py-5 font-bold shadow-lg hover:shadow-xl transition-all transform hover:scale-105"
-        >
-          Start Assessment
-        </button>
-        
-        {/* Abstrakt Attribution */}
-        <p className="text-xs text-abstrakt-text-dim">
-          This free assessment is provided by{' '}
-          <a 
-            href="https://www.abstraktmg.com/digital-marketing-services/" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="text-abstrakt-orange hover:underline"
-          >
-            Abstrakt
-          </a>
-        </p>
       </div>
     </div>
   );
