@@ -7,13 +7,12 @@ import { ProgressIndicator } from '@/components/ProgressIndicator';
 import { BusinessContextForm } from '@/components/BusinessContextForm';
 import { MarketingStateForm } from '@/components/MarketingStateForm';
 import { BrandMaturityForm } from '@/components/BrandMaturityForm';
-import { LeadCaptureForm } from '@/components/LeadCaptureForm';
 import { ResultsDisplay } from '@/components/ResultsDisplay';
 import { ChilipiperPopup } from '@/components/ChilipiperPopup';
 import { IntroSection } from '@/components/IntroSection';
 import { FormData, AnalysisResult, LeadCaptureData, AttributionData, FORM_STEPS } from '@/lib/types';
 
-type AppStep = 'intro' | 'form' | 'lead-capture' | 'analyzing' | 'results';
+type AppStep = 'intro' | 'form' | 'analyzing' | 'results';
 
 export default function Home() {
   const router = useRouter();
@@ -21,7 +20,6 @@ export default function Home() {
   const [appStep, setAppStep] = useState<AppStep>('intro');
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [leadData, setLeadData] = useState<LeadCaptureData | null>(null);
   
   // Shareable results
   const [shareableId, setShareableId] = useState<string | null>(null);
@@ -44,6 +42,12 @@ export default function Home() {
       websiteUrl: '',
       competitorUrls: ['', ''],
       customAdAngle: '',
+      // Lead capture fields
+      email: '',
+      name: '',
+      companySize: '',
+      role: '',
+      wantsCall: true,
     },
     marketingState: {
       monthlySeoBudget: null,
@@ -63,8 +67,7 @@ export default function Home() {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const attributionData: AttributionData = {};
-
-      // Capture UTM parameters
+      
       const utmSource = params.get('utm_source');
       const utmMedium = params.get('utm_medium');
       const utmCampaign = params.get('utm_campaign');
@@ -81,7 +84,6 @@ export default function Home() {
 
       setAttribution(attributionData);
 
-      // Log for debugging (remove in production)
       if (Object.keys(attributionData).length > 0) {
         console.log('Attribution captured:', attributionData);
       }
@@ -94,7 +96,7 @@ export default function Home() {
       popupTimerRef.current = setTimeout(() => {
         setIsSchedulerOpen(true);
         hasShownAutoPopup.current = true;
-      }, 45000); // 45 seconds
+      }, 45000);
     }
 
     return () => {
@@ -118,32 +120,19 @@ export default function Home() {
     setAppStep('form');
   };
 
-  const handleNext = () => {
-    if (currentFormStep < FORM_STEPS.length - 1) {
-      setCurrentFormStep(prev => prev + 1);
-    } else {
-      // Form complete, show lead capture
-      setAppStep('lead-capture');
-    }
-  };
-
-  const handleBack = () => {
-    if (currentFormStep > 0) {
-      setCurrentFormStep(prev => prev - 1);
-    } else {
-      // Go back to intro from first form step
-      setAppStep('intro');
-    }
-  };
-
-  const handleLeadCapture = async (data: LeadCaptureData) => {
-    // Add attribution to lead data
-    const leadWithAttribution = {
-      ...data,
+  // Construct leadData from businessContext for API compatibility
+  const buildLeadData = (): LeadCaptureData => {
+    return {
+      email: formData.businessContext.email,
+      companySize: formData.businessContext.companySize,
+      role: formData.businessContext.role,
+      wantsCall: formData.businessContext.wantsCall,
       attribution,
     };
-    
-    setLeadData(leadWithAttribution);
+  };
+
+  const handleSubmitAnalysis = async () => {
+    const leadData = buildLeadData();
     setAppStep('analyzing');
     setIsAnalyzing(true);
 
@@ -151,10 +140,7 @@ export default function Home() {
       const response = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          formData,
-          leadData: leadWithAttribution,
-        }),
+        body: JSON.stringify({ formData, leadData }),
       });
 
       if (!response.ok) {
@@ -163,28 +149,22 @@ export default function Home() {
 
       const result = await response.json();
       setAnalysisResult(result);
-      
+
       // Save to KV for shareable link
       try {
         const saveResponse = await fetch('/api/results', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            formData,
-            leadData: leadWithAttribution,
-            analysisResult: result,
-          }),
+          body: JSON.stringify({ formData, leadData, analysisResult: result }),
         });
-        
+
         if (saveResponse.ok) {
           const { id } = await saveResponse.json();
           setShareableId(id);
-          // Update URL without navigation (so refresh works)
           window.history.replaceState({}, '', `/results/${id}`);
         }
       } catch (saveError) {
         console.error('Error saving shareable results:', saveError);
-        // Don't block results display if save fails
       }
 
       // Send to Zapier webhook
@@ -192,24 +172,35 @@ export default function Home() {
         await fetch('/api/zapier', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            formData,
-            leadData: leadWithAttribution,
-            analysisResult: result,
-          }),
+          body: JSON.stringify({ formData, leadData, analysisResult: result }),
         });
       } catch (zapierError) {
         console.error('Zapier webhook error:', zapierError);
-        // Don't block results display if Zapier fails
       }
 
       setAppStep('results');
     } catch (error) {
       console.error('Analysis error:', error);
-      // Handle error - show error state
       setAppStep('form');
     } finally {
       setIsAnalyzing(false);
+    }
+  };
+
+  const handleNext = () => {
+    if (currentFormStep < FORM_STEPS.length - 1) {
+      setCurrentFormStep(prev => prev + 1);
+    } else {
+      // Last form step complete — go straight to analysis
+      handleSubmitAnalysis();
+    }
+  };
+
+  const handleBack = () => {
+    if (currentFormStep > 0) {
+      setCurrentFormStep(prev => prev - 1);
+    } else {
+      setAppStep('intro');
     }
   };
 
@@ -217,16 +208,12 @@ export default function Home() {
     if (!analysisResult) return;
 
     try {
-      // Get existing headlines to avoid repeating
       const existingAngles = analysisResult.messagingRecommendation.adAngles.map(a => a.headline);
 
       const response = await fetch('/api/regenerate-messaging', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          formData,
-          existingAngles,
-        }),
+        body: JSON.stringify({ formData, existingAngles }),
       });
 
       if (!response.ok) {
@@ -235,7 +222,6 @@ export default function Home() {
 
       const newMessaging = await response.json();
 
-      // Update analysis result with new messaging
       setAnalysisResult(prev => {
         if (!prev) return prev;
         return {
@@ -253,21 +239,15 @@ export default function Home() {
   };
 
   const handleStartOver = () => {
-    // Clear the auto-popup flag
     hasShownAutoPopup.current = false;
-    
-    // Clear popup timer
     if (popupTimerRef.current) {
       clearTimeout(popupTimerRef.current);
     }
-    
-    // Reset URL
+
     window.history.replaceState({}, '', '/');
-    
     setCurrentFormStep(0);
     setAppStep('intro');
     setAnalysisResult(null);
-    setLeadData(null);
     setShareableId(null);
     setFormData({
       businessContext: {
@@ -279,6 +259,11 @@ export default function Home() {
         websiteUrl: '',
         competitorUrls: ['', ''],
         customAdAngle: '',
+        email: '',
+        name: '',
+        companySize: '',
+        role: '',
+        wantsCall: true,
       },
       marketingState: {
         monthlySeoBudget: null,
@@ -295,7 +280,6 @@ export default function Home() {
   };
 
   const handleOpenScheduler = () => {
-    // Cancel auto-popup timer if user manually opens
     if (popupTimerRef.current) {
       clearTimeout(popupTimerRef.current);
     }
@@ -306,10 +290,17 @@ export default function Home() {
   const canProceed = () => {
     const step = FORM_STEPS[currentFormStep];
     if (step.id === 'business-context') {
-      return formData.businessContext.companyName.trim() !== '' &&
-             formData.businessContext.industry !== '' &&
-             formData.businessContext.websiteUrl.trim() !== '';
+      return (
+        formData.businessContext.companyName.trim() !== '' &&
+        formData.businessContext.websiteUrl.trim() !== '' &&
+        formData.businessContext.email.trim() !== '' &&
+        formData.businessContext.email.includes('@')
+      );
     }
+    if (step.id === 'marketing-state') {
+      return (formData.businessContext.customAdAngle || '').trim() !== '';
+    }
+    // brand-maturity step: always can proceed
     return true;
   };
 
@@ -325,15 +316,19 @@ export default function Home() {
       case 'marketing-state':
         return (
           <MarketingStateForm
-            data={formData.marketingState}
-            onChange={(data) => updateFormData('marketingState', data)}
+            data={formData.businessContext}
+            onChange={(data) => updateFormData('businessContext', data)}
           />
         );
       case 'brand-maturity':
         return (
           <BrandMaturityForm
-            data={formData.brandMaturity}
-            onChange={(data) => updateFormData('brandMaturity', data)}
+            marketingData={formData.marketingState}
+            brandData={formData.brandMaturity}
+            wantsCall={formData.businessContext.wantsCall}
+            onMarketingChange={(data) => updateFormData('marketingState', data)}
+            onBrandChange={(data) => updateFormData('brandMaturity', data)}
+            onWantsCallChange={(wantsCall) => updateFormData('businessContext', { wantsCall })}
           />
         );
       default:
@@ -344,7 +339,6 @@ export default function Home() {
   return (
     <main className="min-h-screen pb-12">
       <BrandHeader />
-      
       <div className="max-w-4xl mx-auto px-4">
         {appStep === 'intro' && (
           <IntroSection onStartAssessment={handleStartAssessment} />
@@ -357,7 +351,7 @@ export default function Home() {
               totalSteps={FORM_STEPS.length}
               steps={FORM_STEPS}
             />
-            
+
             <div className="mt-8">
               {renderFormStep()}
             </div>
@@ -378,14 +372,14 @@ export default function Home() {
                 {currentFormStep === FORM_STEPS.length - 1 ? 'Get My Analysis' : 'Continue →'}
               </button>
             </div>
-          </>
-        )}
 
-        {appStep === 'lead-capture' && (
-          <LeadCaptureForm
-            onSubmit={handleLeadCapture}
-            companyName={formData.businessContext.companyName}
-          />
+            {/* Privacy note on last step */}
+            {currentFormStep === FORM_STEPS.length - 1 && (
+              <p className="text-xs text-abstrakt-text-dim text-center mt-4">
+                By submitting, you agree to receive marketing communications from Abstrakt Marketing Group. You can unsubscribe at any time.
+              </p>
+            )}
+          </>
         )}
 
         {appStep === 'analyzing' && (
@@ -395,7 +389,8 @@ export default function Home() {
               Analyzing Your Brand Position
             </h2>
             <p className="text-abstrakt-text-muted text-center max-w-md">
-              Our AI is evaluating your business context, market position, and generating personalized recommendations...
+              Our AI is evaluating your business context, market position, and generating
+              personalized recommendations...
             </p>
           </div>
         )}
