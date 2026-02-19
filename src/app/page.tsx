@@ -151,6 +151,7 @@ export default function Home() {
       setAnalysisResult(result);
 
       // Save to KV for shareable link
+      let resultsId: string | null = null;
       try {
         const saveResponse = await fetch('/api/results', {
           method: 'POST',
@@ -160,6 +161,7 @@ export default function Home() {
 
         if (saveResponse.ok) {
           const { id } = await saveResponse.json();
+          resultsId = id;
           setShareableId(id);
           window.history.replaceState({}, '', `/results/${id}`);
         }
@@ -167,12 +169,12 @@ export default function Home() {
         console.error('Error saving shareable results:', saveError);
       }
 
-      // Send to Zapier webhook
+      // Send to Zapier webhook (include resultsId if available)
       try {
         await fetch('/api/zapier', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ formData, leadData, analysisResult: result }),
+          body: JSON.stringify({ formData, leadData, analysisResult: result, resultsId }),
         });
       } catch (zapierError) {
         console.error('Zapier webhook error:', zapierError);
