@@ -6,10 +6,11 @@ const ZAPIER_WEBHOOK_URL = process.env.ZAPIER_WEBHOOK_URL || 'https://hooks.zapi
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { formData, leadData, analysisResult } = body as {
+    const { formData, leadData, analysisResult, resultsId } = body as {
       formData: FormData;
       leadData: LeadCaptureData;
       analysisResult: AnalysisResult;
+      resultsId?: string | null;
     };
 
     // Build comprehensive Zapier payload with all fields
@@ -68,6 +69,9 @@ export async function POST(request: NextRequest) {
       utmContent: leadData?.attribution?.utm_content || '',
       utmTerm: leadData?.attribution?.utm_term || '',
       gclid: leadData?.attribution?.gclid || '',
+
+      // Results URL
+      resultsUrl: resultsId ? `https://abstrakt-adsmith.vercel.app/results/${resultsId}` : '',
     };
 
     // Send to Zapier
